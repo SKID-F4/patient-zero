@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choix des textures</title>
+<style>
+:root{--bg:#efeadb;--paper:#fff;--ink:#0b0b0b;--ink2:#6f6a5c;--line:#d9d2bf;--sel:#2b64a8;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Archivo","Helvetica Neue",Arial,sans-serif;padding:20px 16px 120px}
+.wrap{max-width:1040px;margin:0 auto}
+h1{font:900 clamp(32px,7vw,52px)/.9 inherit;text-transform:uppercase;letter-spacing:-.03em;margin:0 0 8px}
+.intro{color:var(--ink2);margin:0 0 22px;max-width:640px;line-height:1.45}
+.lvl{margin:28px 0 8px;font:500 11px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2);border-top:2px solid var(--ink);padding-top:10px}
+.row{background:var(--paper);border:1px solid var(--line);padding:12px;margin-top:10px}
+.row h3{margin:0 0 10px;font-size:15px}
+.row h3 small{font-weight:400;color:var(--ink2);margin-left:6px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.o{appearance:none;border:2px solid transparent;background:#f6f3ea;padding:6px;border-radius:4px;text-align:left;cursor:pointer;display:grid;gap:6px;font:inherit;color:inherit}
+.o img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:2px;background:#ddd}
+.o span{font-size:12px;line-height:1.2}
+.o .mine{width:100%;aspect-ratio:1;border-radius:2px;display:grid;place-items:center;font:500 11px/1.3 ui-monospace,monospace;text-align:center;color:var(--ink2);border:1.5px dashed var(--line);padding:8px}
+.o[aria-pressed="true"]{border-color:var(--sel);background:#e3edf8}
+.o[aria-pressed="true"] span::before{content:"✓ ";color:var(--sel);font-weight:800}
+.o a{font-size:11px;color:var(--ink2)}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:#fff;padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.bar p{margin:0;font:500 12px/1.4 ui-monospace,monospace;max-width:760px}
+.bar button{appearance:none;border:0;background:#fff;color:var(--ink);font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;border-radius:3px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Choix des textures</h1>
+  <p class="intro">Photos de vraies matières, gratuites et libres (Poly Haven, CC0). Clique une texture par ligne. Je pourrai teinter chacune (plus jaune, plus sale) dans le jeu. Rien n'est téléchargé tant que tu n'as pas validé.</p>
+  <div id="list"></div>
+</div>
+<div class="bar"><p id="sum">Aucun choix pour l'instant.</p><button id="copy">Copier mon choix</button></div>
+<script>
+const ROWS = [
+  ['Niveau 1 · Le Hall', 'hall_murs', 'Murs', 'sera teinté jaune papier peint', ['yellow_plaster','yellow_plaster_02','beige_wall_001','beige_wall_002','patterned_plaster_wall','plastered_wall_02']],
+  ['Niveau 1 · Le Hall', 'hall_sol', 'Sol (moquette)', 'teinté beige humide', ['dirty_carpet','hessian_230','rough_linen','poly_wool_herringbone','jersey_melange']],
+  ['Niveau 2 · Poolrooms', 'pool_carrelage', 'Carrelage murs et sol', 'teinté jauni', ['interior_tiles','dirty_tiles','square_tiles','floor_tiles_06','worn_tile_floor','tiled_floor_001']],
+  ['Niveau 3 · Bureaux sans fin', 'bureaux_murs', 'Murs', '', ['white_plaster_02','grey_plaster','painted_concrete','white_rough_plaster','plaster_grey_04']],
+  ['Niveau 3 · Bureaux sans fin', 'bureaux_sol', 'Sol (moquette de bureau)', 'teinté gris', ['poly_wool_herringbone','hessian_380','jersey_melange','dirty_carpet','ribbed_corduroy']],
+  ['Niveau 4 · Tuyauterie', 'tuyau_murs', 'Murs', '', ['concrete_wall_008','dirty_concrete','preconcrete_wall_001','cracked_concrete_wall','concrete_block_wall']],
+  ['Niveau 4 · Tuyauterie', 'tuyau_sol', 'Sol', '', ['concrete_floor_worn_001','damaged_concrete_floor','garage_floor','worn_concrete_floor','dirty_concrete']],
+  ['Niveau 4 · Tuyauterie', 'tuyau_metal', 'Tuyaux', '', ['rusty_metal_02','green_metal_rust','rusty_painted_metal','rusty_metal_sheet']],
+];
+const pretty = id => id.replace(/_/g, ' ').replace(/\b\w/, c => c.toUpperCase());
+const sel = {};
+let last = '';
+const list = document.getElementById('list');
+for (const [lvl, key, label, note, ids] of ROWS) {
+  if (lvl !== last) { const h = document.createElement('div'); h.className = 'lvl'; h.textContent = lvl; list.appendChild(h); last = lvl; }
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = `<h3>${label}${note ? `<small>${note}</small>` : ''}</h3><div class="opts">` +
+    ids.map(id => `<button class="o" data-k="${key}" data-v="${id}" aria-pressed="false"><img loading="lazy" alt="${pretty(id)}" src="https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/${id}/${id}_diff_1k.jpg" onerror="this.onerror=null;this.src='https://cdn.polyhaven.com/asset_img/thumbs/${id}.png?width=256&height=256'"><span>${pretty(id)}</span><a href="https://polyhaven.com/a/${id}" target="_blank" rel="noopener">voir en grand</a></button>`).join('') +
+    `<button class="o" data-k="${key}" data-v="actuelle" aria-pressed="false"><div class="mine">garder la texture actuelle</div><span>Actuelle</span></button></div>`;
+  list.appendChild(row);
+}
+function summary() {
+  const parts = ROWS.map(([, key, label]) => sel[key] ? `${key}=${sel[key]}` : null).filter(Boolean);
+  document.getElementById('sum').textContent = parts.length ? `Choix (${parts.length}/${ROWS.length}) : ` + parts.join(' · ') : 'Aucun choix pour l\'instant.';
+  window.__choix = sel;
+}
+list.addEventListener('click', e => {
+  if (e.target.closest('a')) return;
+  const b = e.target.closest('.o'); if (!b) return;
+  sel[b.dataset.k] = b.dataset.v;
+  for (const x of list.querySelectorAll(`.o[data-k="${b.dataset.k}"]`)) x.setAttribute('aria-pressed', String(x === b));
+  summary();
+});
+document.getElementById('copy').addEventListener('click', async () => {
+  const t = document.getElementById('sum').textContent;
+  try { await navigator.clipboard.writeText(t); document.getElementById('copy').textContent = 'Copié'; } catch (e) { document.getElementById('copy').textContent = 'Sélectionne le texte'; }
+});
+</script>
+</body>
+</html>
