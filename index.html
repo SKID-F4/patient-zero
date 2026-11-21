@@ -70,6 +70,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   width:72px;height:72px;border-radius:50%;border:2px solid var(--ink);background:#d9fbff;color:var(--ink);display:grid;place-content:center;gap:3px;
   font:800 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;box-shadow:0 0 18px rgba(127,233,255,.8);animation:ready .8s infinite}
 #wallBtn small{font:500 10px/1 var(--mono);opacity:.6;text-transform:none}
+#wallBtn{background:linear-gradient(to top,#7fe9ff calc(var(--p,0)*100%),#d9fbff 0)}
 @media (pointer:coarse){#wallBtn small{display:none}}
 .opt{display:flex;align-items:center;justify-content:space-between;gap:10px;font:700 13px/1 var(--sans);flex-wrap:wrap}
 .skn{display:block;font:500 10px/1.4 var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);margin-top:3px}
@@ -854,6 +855,7 @@ function spawnItem() {
   }
 }
 function clearItems() {
+  for (const w of wallShots) scene.remove(w.m); wallShots.length = 0; wallCharging = false;
   for (const it of items) scene.remove(it.m, it.h); items.length = 0;
   for (const w of tempWalls) { if (grid) grid[w.k] = 0; scene.remove(w.m); } tempWalls.length = 0;
 }
@@ -879,10 +881,76 @@ function wallAhead(e, dx, dz) {
   const ax = Math.abs(dx) > Math.abs(dz), sx = ax ? Math.sign(dx) : 0, sz = ax ? 0 : Math.sign(dz);
   return placeWall(e, ci + sx, cj + sz) || placeWall(e, ci + (ax ? 0 : Math.sign(dx) || 1), cj + (ax ? Math.sign(dz) || 1 : 0));
 }
-function youWall() {
-  const me = you(); if (!me || !me.alive || !me.wallCharge || state !== 'play') return;
-  if (NET.role === 'guest') { netPost({ t: 'wall', yaw: me.yaw }); return; }
-  if (!wallAhead(me, Math.sin(me.yaw), Math.cos(me.yaw))) msg('Pas de place ici', 'Tourne-toi vers un passage libre', 1);
+const WALL_MIN = 1.5, WALL_MAX = 7;
+const wallLen = pw => WALL_MIN + (WALL_MAX - WALL_MIN) * Math.max(0, Math.min(1, pw));
+// point d'arrivée du mur : devant soi, sans traverser les murs pleins
+function wallTarget(e, pw, yaw) {
+  const dx = Math.sin(yaw), dz = Math.cos(yaw);
+  let L = wallLen(pw);
+  while (L > .6 && (isWall(w2c(e.pos.x + dx * L), w2c(e.pos.z + dz * L)) && grid[w2c(e.pos.z + dz * L) * W + w2c(e.pos.x + dx * L)] === 1)) L -= .4;
+  return { x: e.pos.x + dx * L, z: e.pos.z + dz * L };
+}
+// case libre la plus proche du point visé (la case visée d'abord)
+function wallCells(x, z) {
+  const ci = w2c(x), cj = w2c(z), out = [];
+  for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+    const i = ci + di, j = cj + dj; if (i < 1 || j < 1 || i >= W - 1 || j >= H - 1) continue;
+    out.push([i, j, Math.hypot(c2w(i) - x, c2w(j) - z)]);
+  }
+  return out.sort((a, b) => a[2] - b[2]);
+}
+const wallShots = [];
+const geoShot = new THREE.IcosahedronGeometry(.28, 1);
+function throwWall(e, pw, yaw) {
+  if (!e || !e.alive || !e.wallCharge || state !== 'play') return false;
+  e.wallCharge = 0;
+  const to = wallTarget(e, pw, yaw), m = new THREE.Mesh(geoShot, matOrb);
+  m.position.set(e.pos.x, 1.4, e.pos.z); scene.add(m);
+  wallShots.push({ e, m, fx: e.pos.x, fz: e.pos.z, to, t: 0 });
+  tone(420, .2, 'triangle', .06, 900);
+  return true;
+}
+function updateWallShots(dt) {
+  for (let i = wallShots.length - 1; i >= 0; i--) {
+    const w = wallShots[i]; w.t += dt / .38; const t = Math.min(1, w.t);
+    w.m.position.set(w.fx + (w.to.x - w.fx) * t, 1.4 * (1 - t) + .4 + Math.sin(Math.PI * t) * 2.2, w.fz + (w.to.z - w.fz) * t);
+    w.m.rotation.x += dt * 9; w.m.rotation.y += dt * 7;
+    if (t < 1) continue;
+    scene.remove(w.m); wallShots.splice(i, 1);
+    if (NET.role === 'guest') continue; // l'hôte pose le vrai mur, il arrive avec la prochaine image
+    let ok = false;
+    for (const [ci, cj] of wallCells(w.to.x, w.to.z)) if (placeWall(w.e, ci, cj)) { ok = true; break; }
+    if (!ok) { w.e.wallCharge = 1; if (w.e.isYou) msg('Pas de place ici', 'Vise un passage libre', 1); }
+  }
+}
+// visée : une case fantôme montre où le mur va tomber
+const wallAim = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(CELL * .96, 1.2, CELL * .96)), new THREE.LineBasicMaterial({ color: 0x7fe9ff, transparent: true, opacity: .9 }));
+wallAim.visible = false; scene.add(wallAim);
+let wallCharging = false, wallChargeT = 0;
+function wallStart() { const me = you(); if (me && me.alive && me.wallCharge && state === 'play') { wallCharging = true; wallChargeT = 0; } }
+function wallRelease() {
+  if (!wallCharging) return; wallCharging = false;
+  const me = you(), pw = wallChargeT / CHARGE_TIME; wallChargeT = 0;
+  if (!me || !me.alive || !me.wallCharge || state !== 'play') return;
+  if (NET.role === 'guest') {
+    netPost({ t: 'wall', yaw: me.yaw, p: pw });
+    const to = wallTarget(me, pw, me.yaw), m = new THREE.Mesh(geoShot, matOrb); m.position.set(me.pos.x, 1.4, me.pos.z); scene.add(m);
+    wallShots.push({ e: me, m, fx: me.pos.x, fz: me.pos.z, to, t: 0 }); tone(420, .2, 'triangle', .06, 900);
+    return;
+  }
+  throwWall(me, pw, me.yaw);
+}
+function wallAimUpdate(dt) {
+  const me = you();
+  if (wallCharging && !(me && me.alive && me.wallCharge && state === 'play')) wallCharging = false;
+  if (wallCharging) wallChargeT += dt;
+  wallAim.visible = wallCharging;
+  if (wallCharging) {
+    const to = wallTarget(me, wallChargeT / CHARGE_TIME, me.yaw), c = wallCells(to.x, to.z).find(([i, j]) => grid[j * W + i] === 0);
+    if (c) wallAim.position.set(c2w(c[0]), .6, c2w(c[1]));
+    wallAim.material.opacity = .55 + .35 * Math.sin(T * 12);
+  }
+  $('#wallBtn').style.setProperty('--p', wallCharging ? Math.min(1, wallChargeT / CHARGE_TIME).toFixed(3) : 0);
 }
 function updateItems(dt) {
   if (!itemsOn) return;
@@ -895,7 +963,7 @@ function updateItems(dt) {
     if (e) {
       e.wallCharge = 1; scene.remove(it.m, it.h); items.splice(i, 1);
       tone(660, .12, 'sine', .08, 1320); tone(990, .2, 'sine', .05, 1500);
-      if (e.isYou) msg('Mur en poche', isTouch ? 'Bouton MUR pour le poser' : 'F pour le poser devant toi', 1.4);
+      if (e.isYou) msg('Mur en poche', isTouch ? 'Maintiens MUR, relâche pour le lancer' : 'Maintiens F, relâche pour le lancer', 1.6);
     }
   }
   for (let i = tempWalls.length - 1; i >= 0; i--) {
@@ -1172,7 +1240,8 @@ function chargeRelease() {
   if (!charging) return; charging = false; const pw = chargeT / CHARGE_TIME; chargeT = 0;
   if (NET.role === 'guest') netPost({ t: 'throw', p: pw }); else doThrow(you(), pw);
 }
-addEventListener('keydown', e => { if (e.code === 'KeyF') { audio(); youWall(); } });
+addEventListener('keydown', e => { if (e.code === 'KeyF' && !e.repeat) { audio(); wallStart(); } });
+addEventListener('keyup', e => { if (e.code === 'KeyF') wallRelease(); });
 addEventListener('blur', () => keys.clear());
 
 const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
@@ -1195,7 +1264,8 @@ addEventListener('pointermove', e => {
 const joyEnd = e => { if (e.pointerId !== joy.id) return; joy.id = null; joy.x = joy.y = 0; jb.hidden = jk.hidden = true; };
 addEventListener('pointerup', joyEnd); addEventListener('pointercancel', joyEnd);
 
-$('#wallBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audio(); youWall(); });
+$('#wallBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audio(); wallStart(); });
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('#wallBtn').addEventListener(ev, e => { e.preventDefault(); wallRelease(); });
 $('#itemsSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; itemsMode = b.dataset.v;
   for (const x of $('#itemsSeg').children) x.setAttribute('aria-pressed', String(x === b));
@@ -1376,6 +1446,7 @@ function update(dt) {
   updateItems(dt);
   updatePrints(dt);
   aimUpdate(dt);
+  wallAimUpdate(dt); updateWallShots(dt);
 
   // compte à rebours
   if (state === 'play' && timer !== null) {
@@ -1644,7 +1715,7 @@ function hostMsg(m) {
   const e = ents.find(x => x.netId && x.netId === m.from); if (!e || !e.alive) return;
   if (m.t === 'pos') e.netPos = m;
   else if (m.t === 'throw') doThrow(e, +m.p || 0);
-  else if (m.t === 'wall' && e.wallCharge && state === 'play') { e.yaw = +m.yaw || e.yaw; wallAhead(e, Math.sin(e.yaw), Math.cos(e.yaw)); }
+  else if (m.t === 'wall' && e.wallCharge && state === 'play') { const y = isFinite(+m.yaw) ? +m.yaw : e.yaw; throwWall(e, isFinite(+m.p) ? +m.p : 1, y); }
 }
 function netFollow(e, dt) {
   const p = e.netPos; if (!p) return;
@@ -1742,7 +1813,7 @@ function guestSnap(m) {
   });
   elim = m.el.map(i => ents[i]).filter(Boolean);
   const me = you();
-  if (me && me.wallCharge && !lastCharge) { tone(660, .12, 'sine', .08, 1320); msg('Mur en poche', isTouch ? 'Bouton MUR pour le poser' : 'F pour le poser devant toi', 1.4); }
+  if (me && me.wallCharge && !lastCharge) { tone(660, .12, 'sine', .08, 1320); msg('Mur en poche', isTouch ? 'Maintiens MUR, relâche pour le lancer' : 'Maintiens F, relâche pour le lancer', 1.6); }
   lastCharge = me ? me.wallCharge : 0;
   holder = m.h >= 0 ? ents[m.h] || null : null;
   if (m.h !== lastHolder) {
@@ -1821,6 +1892,7 @@ function guestUpdate(dt) {
   }
   updatePrints(dt);
   aimUpdate(dt);
+  wallAimUpdate(dt); updateWallShots(dt);
   for (let i = 0; i < items.length; i++) { const it = items[i]; it.m.position.y = .9 + Math.sin(T * 3 + i) * .15; it.m.rotation.y += dt * 2; it.h.scale.setScalar(1 + Math.sin(T * 4) * .12); }
   animFx(dt);
 }
@@ -1884,6 +1956,8 @@ if (SALON) { ['#lvHead', '#lvls', '#optItems', '#optBots', '#play'].forEach(sx =
 if (/[?&]test\b/.test(location.search)) window.__pz = {
   sim(sec) { for (let k = 0; k < sec * 60; k++) { if (state === 'play' || state === 'boom') update(1 / 60); } visuals(1 / 60); renderer.render(scene, camera); return this.info(); },
   setSol(v) { SOL = v; return SOL; },
+  giveWall(i) { (i == null ? you() : ents[i]).wallCharge = 1; return 'ok'; },
+  wallInfo() { return { charge: you().wallCharge, tirs: wallShots.length, murs: tempWalls.map(w => [w.k % W, w.k / W | 0]), moi: [w2c(you().pos.x), w2c(you().pos.z)], yaw: r2(you().yaw) }; },
   bots(n) { botsN = n; renderBots(); return { bots: botsN, total: plannedTotal(), carte: mapSizeFor(plannedTotal()) }; },
   tick(dt = 1 / 30, n = 1) { for (let k = 0; k < n; k++) step(dt); return this.info(); },
   mode(v) { NET.mode = v; renderNet(); return v; },
