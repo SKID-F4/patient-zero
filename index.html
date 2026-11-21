@@ -106,6 +106,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .link{font:500 12px/1.4 var(--mono);word-break:break-all;background:#f3efe4;padding:9px 10px;border:1px solid var(--line);user-select:all;-webkit-user-select:all}
 .joinrow{display:flex;gap:8px}
 .joinrow .btn{flex:1}
+#pseudoBtn{flex:0 0 auto;padding:9px 12px;font-size:12px}
+#pseudoBtn[disabled]{opacity:.55;cursor:default}
 .code-in{width:110px;text-transform:uppercase;letter-spacing:.2em;font-family:var(--mono);text-align:center}
 .plist{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .plist li{font:700 12px/1 var(--sans);border:1.5px solid var(--ink);padding:6px 10px;border-radius:999px}
@@ -208,7 +210,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <button class="btn" id="play">Jouer</button>
     <div class="net" id="net" hidden>
       <div class="lvhead" id="netHead">Avec des amis</div>
-      <div class="opt"><span>Ton pseudo</span><input id="pseudo" class="inp" maxlength="14" placeholder="Ton pseudo" autocomplete="nickname"></div>
+      <div class="opt"><span>Ton pseudo <em id="pseudoOk" class="skn"></em></span><div class="joinrow"><input id="pseudo" class="inp" maxlength="14" placeholder="Ton pseudo" autocomplete="nickname" enterkeyhint="done"><button class="btn ghost" id="pseudoBtn" type="button">Valider</button></div></div>
       <div id="netBody"></div>
     </div>
     <div class="ctl">PC : ZQSD ou flèches + Espace · Téléphone : glisse à gauche, bouton à droite</div>
@@ -2526,7 +2528,8 @@ function renderNet() {
   if (!NET.mode) { box.hidden = true; return; }
   box.hidden = false;
   $('#netHead').textContent = NET.mode === 'online' ? 'Avec tes potes · en ligne' : 'Avec des amis · même Wi-Fi';
-  $('#pseudo').value = NET.name;
+  if (document.activeElement !== $('#pseudo') && !pseudoDirty()) $('#pseudo').value = NET.name;
+  pseudoState();
   const b = $('#netBody'), st = NET.status ? `<div class="ctl">${esc(NET.status)}</div>` : '';
   if (NET.role === 'host') {
     const ip = NET.mode === 'online' ? 'en ligne' : serverInfo.ips[0];
@@ -2562,10 +2565,23 @@ $('#netBody').addEventListener('click', e => {
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { t.textContent = 'Lien copié'; }, () => { t.textContent = 'Sélectionne le lien'; });
   }
 });
-$('#pseudo').addEventListener('input', e => {
-  NET.name = e.target.value.replace(/[<>&"'`]/g, '').slice(0, 14); try { localStorage.setItem('pz-name', NET.name); } catch (er) {}
-  if (NET.role === 'host') { renderNet(); hostLobby(); }
-});
+// pseudo : on tape, puis on valide (bouton ou touche Entrée)
+function pseudoDirty() { return ($('#pseudo').value.replace(/[<>&"'`]/g, '').trim().slice(0, 14)) !== NET.name; }
+function pseudoState() {
+  const d = pseudoDirty();
+  $('#pseudoBtn').disabled = !d; $('#pseudoBtn').textContent = d ? 'Valider' : 'Validé ✓';
+  $('#pseudoOk').textContent = d ? 'pas encore validé' : (NET.name ? 'enregistré' : '');
+}
+function pseudoValidate() {
+  const v = $('#pseudo').value.replace(/[<>&"'`]/g, '').trim().slice(0, 14);
+  NET.name = v; $('#pseudo').value = v; try { localStorage.setItem('pz-name', v); } catch (er) {}
+  if (NET.role === 'host') { renderNet(); hostLobby(); if (NET.ch && NET.mode === 'online') NET.ch.track({ role: 'host', id: NET.id, name: v || 'Hôte' }); }
+  if (NET.role === 'guest' && NET.ch && NET.mode === 'online') NET.ch.track({ role: 'guest', id: NET.id, name: v || 'Invité', skin });
+  pseudoState(); $('#pseudo').blur(); tone(880, .08, 'sine', .05, 1320);
+}
+$('#pseudo').addEventListener('input', pseudoState);
+$('#pseudo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); audio(); pseudoValidate(); } e.stopPropagation(); });
+$('#pseudoBtn').addEventListener('click', e => { e.stopPropagation(); audio(); pseudoValidate(); });
 function enterGuestMenu(c) {
   SALON = c;
   ['#lvHead', '#lvls', '#optItems', '#optBots', '#optModes', '#play'].forEach(sx => { const el = $(sx); if (el) el.hidden = true; });
