@@ -85,8 +85,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 #skillBox span{font:500 11px/1.3 var(--sans);color:#3c3a34}
 #skillBox em{font:500 10px/1 var(--mono);font-style:normal;color:var(--ink2);letter-spacing:.06em;text-transform:uppercase}
 #skillBox.on{background:var(--ink);color:#fff}#skillBox.on span,#skillBox.on em{color:#ddd}
+#quitBtn{position:fixed;right:max(16px,env(safe-area-inset-right));top:calc(48px + env(safe-area-inset-top));appearance:none;border:1.5px solid var(--ink);background:rgba(255,255,255,.9);border-radius:999px;padding:6px 11px;font:700 11px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase}
+#radar{top:calc(84px + env(safe-area-inset-top))!important}
+#specBar{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.94);border:2px solid var(--ink);border-radius:999px;padding:6px 8px;font:600 13px/1 var(--sans);white-space:nowrap}
+#specBar button{appearance:none;border:0;background:var(--ink);color:#fff;width:34px;height:34px;border-radius:50%;font:800 14px/1 var(--sans)}
 #skillBtn{position:fixed;right:calc(max(20px,env(safe-area-inset-right)) + 116px);bottom:calc(40px + env(safe-area-inset-bottom));width:70px;height:70px;border-radius:50%;border:2px solid var(--ink);background:#fff;color:var(--ink);font:800 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase}
-#skillBtn[disabled]{opacity:.3}
+#skillBtn{display:grid;place-content:center;gap:2px;background:conic-gradient(#7fe9ff calc(var(--p,1)*360deg),#fff 0)}
+#skillBtn b{font:900 18px/1 var(--sans)}#skillBtn small{font:500 9px/1 var(--mono);text-transform:none;letter-spacing:0;opacity:.75}
+#skillBtn[disabled]{opacity:.55}
 #hearts{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translateX(-50%);font:800 18px/1 var(--sans);letter-spacing:4px;color:#8a3bd6;text-shadow:0 1px 0 #fff,0 0 6px rgba(255,255,255,.8)}
 #radar{position:fixed;right:max(16px,env(safe-area-inset-right));top:calc(48px + env(safe-area-inset-top));width:150px;height:150px;border:2px solid var(--ink);background:rgba(11,11,11,.78);image-rendering:pixelated}
 #gasFx{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(120,40,200,0) 40%,rgba(120,40,200,.55));opacity:0}
@@ -109,6 +115,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .seg{display:inline-grid;grid-auto-flow:column;border:1.5px solid var(--ink);border-radius:999px;overflow:hidden}
 .seg button{border:0;background:transparent;padding:7px 11px;font-weight:600;font-size:12px}
 .seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+#fast{bottom:calc(84px + env(safe-area-inset-bottom))!important}
 #fast{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom));
   border:2px solid var(--ink);background:#fff;padding:10px 14px;border-radius:999px;font:700 12px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase}
 #fast[aria-pressed="true"]{background:var(--ink);color:#fff}
@@ -167,6 +174,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 <div id="roster" hidden></div>
 <div id="timer" class="wait" hidden>—</div>
 <div id="round" hidden></div>
+<button id="quitBtn" hidden>Quitter la partie</button>
+<div id="specBar" hidden><button id="specPrev" aria-label="Joueur précédent">◀</button><span>Tu regardes <b id="specName"></b></span><button id="specNext" aria-label="Joueur suivant">▶</button></div>
 <div id="msg"><b></b><span></span></div>
 
 <button id="throw" hidden disabled>Lancer<small>Espace</small></button>
@@ -1315,10 +1324,10 @@ function gasVisual(dt) {
 
 // ----- compétences (mode Skills) : toutes du même niveau de puissance -----
 const SKILLS = {
-  invis:  { n: 'Invisibilité',   d: '4 s invisible pour tout le monde, même le virus.', uses: 1, dur: 4 },
-  ghost:  { n: 'Passe-muraille', d: '3 s à travers les murs. 2 fois par manche (15 s entre les deux).', uses: 2, dur: 3, cd: 15 },
+  invis:  { n: 'Invisibilité',   d: '4 s invisible pour tout le monde, même le virus. Recharge 20 s.', uses: 99, dur: 4, cd: 20 },
+  ghost:  { n: 'Passe-muraille', d: '3 s à travers les murs. Recharge 15 s.', uses: 99, dur: 3, cd: 15 },
   life:   { n: 'Seconde vie',    d: 'Tu survis à une explosion ou au gaz, une fois par manche.', passive: true, uses: 1 },
-  sprint: { n: 'Sprint',         d: 'Vitesse ×1,7 pendant 2 s, une fois par manche.', uses: 1, dur: 2 },
+  sprint: { n: 'Sprint',         d: 'Vitesse ×1,7 pendant 2 s. Recharge 10 s.', uses: 99, dur: 2, cd: 10 },
   lob:    { n: 'Lancer lourd',   d: 'Tes lancers passent au-dessus des murs et vont plus loin.', passive: true },
   radar:  { n: 'Radar',          d: 'Toutes les 25 à 45 s, tu vois tout le monde 5 s (même invisible).', passive: true },
 };
@@ -1337,7 +1346,7 @@ function skillsStartRound() {
 function canSkill(e) { const d = e && e.skill && SKILLS[e.skill]; return !!(d && !d.passive && e.alive && e.skUses > 0 && e.skCd <= 0 && state === 'play' && !(e.invisT > 0 || e.ghostT > 0 || e.sprintT > 0)); }
 function useSkill(e) {
   if (!canSkill(e)) return false;
-  const d = SKILLS[e.skill]; e.skUses--; e.skCd = d.cd || 0;
+  const d = SKILLS[e.skill]; e.skUses--; e.skCd = (d.cd || 0) + (d.dur || 0);
   if (e.skill === 'invis') e.invisT = d.dur;
   if (e.skill === 'ghost') e.ghostT = d.dur;
   if (e.skill === 'sprint') e.sprintT = d.dur;
@@ -1402,10 +1411,15 @@ function skillsVisual() {
   const box = $('#skillBox'), btn = $('#skillBtn');
   const d = me && me.skill && SKILLS[me.skill];
   box.hidden = !(d && me.alive && state !== 'menu' && state !== 'over');
-  btn.hidden = box.hidden || !!d.passive || !isTouch;
+  btn.hidden = box.hidden || !!d.passive;
   if (box.hidden) return;
   box.querySelector('b').textContent = d.n; box.querySelector('span').textContent = d.d;
-  box.querySelector('em').textContent = d.passive ? 'Ta compétence · passive' : `Ta compétence · ${isTouch ? 'bouton' : 'R'} · ${me.skUses} restante${me.skUses > 1 ? 's' : ''}${me.skCd > 0 ? ' · ' + Math.ceil(me.skCd) + ' s' : ''}`;
+  box.querySelector('em').textContent = d.passive ? 'Ta compétence · passive' : `Ta compétence · ${isTouch ? 'bouton' : 'touche R'} · ${me.skCd > 0 ? 'recharge ' + Math.ceil(me.skCd) + ' s' : 'prête'}`;
+  if (!d.passive) {
+    const full = (d.cd || 0) + (d.dur || 0), pr = me.skCd > 0 && full ? 1 - me.skCd / full : 1;
+    btn.style.setProperty('--p', pr.toFixed(3));
+    btn.innerHTML = me.skCd > 0 ? `<b>${Math.ceil(me.skCd)}</b><small>s</small>` : `<b>${isTouch ? 'Skill' : 'R'}</b><small>${d.n.split(' ')[0]}</small>`;
+  }
   const act = me.invisT > 0 || me.ghostT > 0 || me.sprintT > 0 || me.radarOn > 0;
   box.classList.toggle('on', act); btn.disabled = !canSkill(me);
 }
@@ -1773,7 +1787,9 @@ renderModes();
 function pickTheme() { const ks = Object.keys(THEMES); return THEMES[sel] || THEMES[ks[Math.random() * ks.length | 0]]; }
 $('#play').addEventListener('click', () => { audio(); $('#menu').hidden = true; newGame(); });
 $('#again').addEventListener('click', () => { audio(); $('#end').hidden = true; newGame(); });
+$('#quitBtn').addEventListener('click', e => { e.stopPropagation(); audio(); quitGame(); });
 $('#tomenu').addEventListener('click', () => {
+  ['#quitBtn', '#specBar', '#skillBtn', '#skillBox'].forEach(sx => $(sx).hidden = true);
   clearSave();
   $('#end').hidden = true; $('#menu').hidden = false; state = 'menu';
   for (const e of ents) { scene.remove(e.g); e.lab.remove(); } ents = [];
@@ -2067,7 +2083,10 @@ function visuals(dt) {
   const me = you();
 
   // caméra
-  const focus = me && me.alive ? me.pos : (holder ? holder.pos : (virus.mode !== 'gone' ? virus.g.position : camTarget));
+  const spec = me && !me.alive && (state === 'play' || state === 'boom') ? specTarget() : null;
+  const focus = me && me.alive ? me.pos : (spec ? spec.pos : (virus.mode !== 'gone' ? virus.g.position : camTarget));
+  $('#specBar').hidden = !spec; if (spec) $('#specName').textContent = spec.name;
+  $('#quitBtn').hidden = !(state === 'play' || state === 'boom') || !ents.length;
   camTarget.x += (focus.x - camTarget.x) * (1 - Math.exp(-dt * 6));
   camTarget.z += (focus.z - camTarget.z) * (1 - Math.exp(-dt * 6));
   const portrait = innerWidth < innerHeight;
@@ -2190,6 +2209,7 @@ function hostMsg(m) {
   const e = ents.find(x => x.netId && x.netId === m.from); if (!e || !e.alive) return;
   if (m.t === 'pos') e.netPos = m;
   else if (m.t === 'skill') useSkill(e);
+  else if (m.t === 'quit') { e.netId = null; e.remote = false; e.think = 0; }
   else if (m.t === 'throw') doThrow(e, +m.p || 0);
   else if (m.t === 'wall' && e.wallCharge && state === 'play') { const y = isFinite(+m.yaw) ? +m.yaw : e.yaw; throwWall(e, isFinite(+m.p) ? +m.p : 1, y); }
 }
@@ -2318,6 +2338,7 @@ function guestMsg(m) {
   if (m.t === 'lobby') { NET.lobby = m.names; NET.status = NET.inGame ? '' : (m.st && m.st !== 'menu' ? 'Une partie est en cours : tu entres à la prochaine.' : 'En attente que l’hôte lance la partie…'); renderNet(); return; }
   if (m.t === 'nohost') { NET.status = 'L’hôte n’est pas (encore) dans le salon.'; renderNet(); return; }
   if (m.t === 'full') { NET.status = 'Salon plein (6 joueurs maximum).'; if (NET.es) NET.es.close(); renderNet(); return; }
+  if (m.t === 'tolobby') { if (NET.inGame) guestToMenu('L’hôte est revenu au salon.'); return; }
   if (m.t === 'hostgone') {
     if (NET.inGame) {
       if (!NET.hostLost) { msg('Connexion perdue', 'L’hôte se reconnecte…', 4); NET.hostLost = setTimeout(() => { NET.hostLost = null; guestToMenu('L’hôte a quitté le salon.'); }, 25000); }
@@ -2325,11 +2346,37 @@ function guestMsg(m) {
     return;
   }
 }
+let specIdx = -1;
+function specList() { return ents.filter(e => e.alive && !e.hidden); }
+function specTarget() {
+  const al = specList(); if (!al.length) return null;
+  let e = ents[specIdx];
+  if (!e || !e.alive || e.hidden) { e = holder && holder.alive && !holder.hidden ? holder : al[0]; specIdx = ents.indexOf(e); }
+  return e;
+}
+function specCycle(d) {
+  const al = specList(); if (!al.length) return;
+  let i = al.indexOf(ents[specIdx]); i = ((i < 0 ? 0 : i + d) + al.length) % al.length; specIdx = ents.indexOf(al[i]);
+}
+$('#specPrev').addEventListener('click', e => { e.stopPropagation(); specCycle(-1); });
+$('#specNext').addEventListener('click', e => { e.stopPropagation(); specCycle(1); });
+addEventListener('keydown', e => {
+  const me = you(); if (!me || me.alive || state === 'menu' || state === 'over') return;
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') specCycle(-1);
+  if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Tab') { if (e.code === 'Tab') e.preventDefault(); specCycle(1); }
+});
+function quitGame() {
+  if (state === 'menu') return;
+  clearSave(); charging = false; wallCharging = false;
+  if (NET.role === 'guest') { netPost({ t: 'quit' }); guestToMenu('Tu as quitté la partie : tu entres à la prochaine.'); return; }
+  if (NET.role === 'host') netPost({ t: 'tolobby' });
+  $('#tomenu').click();
+}
 function guestToMenu(why) {
   NET.inGame = false; state = 'menu';
   for (const e of ents) { scene.remove(e.g); e.lab.remove(); } ents = [];
   virus.g.visible = false; virus.mode = 'gone'; clearItems(); clearPrints();
-  ['#roster', '#round', '#throw', '#fast', '#hint', '#wallBtn'].forEach(sx => $(sx).hidden = true);
+  ['#roster', '#round', '#throw', '#fast', '#hint', '#wallBtn', '#quitBtn', '#specBar', '#skillBtn', '#skillBox'].forEach(sx => $(sx).hidden = true);
   $('#end').hidden = true; $('#menu').hidden = false;
   NET.status = why; renderNet();
 }
@@ -2553,6 +2600,8 @@ function reopenHost() {
 if (/[?&]test\b/.test(location.search)) window.__pz = {
   sim(sec) { for (let k = 0; k < sec * 60; k++) { if (state === 'play' || state === 'boom') update(1 / 60); } visuals(1 / 60); renderer.render(scene, camera); return this.info(); },
   setSol(v) { SOL = v; return SOL; },
+  spec() { const t = specTarget(); return t ? t.name : null; },
+  specNext() { specCycle(1); return this.spec(); },
   modes(o) { Object.assign(MODES, o); renderModes(); return MODES; },
   modeInfo() { return { GM, moves: moves.length, faits: movesDone.length, gaz: GZ.on ? [r2(GZ.r)] : null, pv: ents.map(e => e.hp), skills: ents.map(e => e.skill), usages: ents.map(e => e.skUses), invisible: ents.map(e => invisible(e)), fantome: ents.map(e => e.ghostT > 0) }; },
   skill() { return useSkill(you()); },
