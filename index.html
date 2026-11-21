@@ -205,7 +205,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="lvls" id="lvls"></div>
     <div class="opt"><span>Ta combinaison <em id="skinName" class="skn"></em></span><div class="skins" id="skins"></div></div>
     <div class="opt" id="optBots"><span>Bots <em id="botsHint" class="skn"></em></span><div class="seg" id="botsSeg"><button data-v="0" aria-pressed="false">0</button><button data-v="1" aria-pressed="false">1</button><button data-v="2" aria-pressed="false">2</button><button data-v="3" aria-pressed="false">3</button><button data-v="4" aria-pressed="false">4</button><button data-v="5" aria-pressed="false">5</button></div></div>
-    <div class="opt" id="optModes"><span>Modes <em class="skn">à combiner</em></span><div class="chips" id="modeChips"><button data-m="walls" aria-pressed="false">Murs qui bougent</button><button data-m="gas" aria-pressed="false">Gaz violet</button><button data-m="skills" aria-pressed="false">Skills</button></div></div>
+    <div class="opt" id="optModes"><span>Modes <em class="skn">à combiner</em></span><div class="chips" id="modeChips"><button data-m="walls" aria-pressed="false">Murs qui bougent</button><button data-m="gas" aria-pressed="false">Gaz violet</button><button data-m="skills" aria-pressed="false">Skills</button><button data-m="tp" aria-pressed="false">Téléporteurs</button></div></div>
     <div class="opt" id="optItems"><span>Objets bonus</span><div class="seg" id="itemsSeg"><button data-v="auto" aria-pressed="true">Auto</button><button data-v="on" aria-pressed="false">Toujours</button><button data-v="off" aria-pressed="false">Jamais</button></div></div>
     <button class="btn" id="play">Jouer</button>
     <div class="net" id="net" hidden>
@@ -452,13 +452,13 @@ const THEMES = {
     lvl: 'Niveau 5', name: 'Forêt mystique', desc: 'Arbres immenses, rivières sombres, lucioles. Quelque chose respire entre les troncs.',
     bg: '#748473', fog: [24, 78], sun: '#e4ecff', sunI: 1.15, hemi: ['#e0eee4', '#34402c', .42], exp: 1.05,
     env: ['#38463a', '#e6eeff', '#2c3a2a'], wall: ['mossRock', 256, .9], floor: ['forestFloor', 256, 1],
-    open: .55, pillar: .4, rivers: true, teleports: true, style: 'forest', sol: 'humide', items: true, water: '#2b5a5c', sw: ['#3e5a3a', '#2b5a5c'],
+    open: .55, pillar: .4, rivers: true, style: 'forest', sol: 'humide', items: true, water: '#2b5a5c', sw: ['#3e5a3a', '#2b5a5c'],
   },
   circus: {
     lvl: 'Niveau 6', name: 'Cirque', desc: 'Rayures délavées, sciure, ballons dégonflés. La musique de manège ne s’arrête jamais.',
     bg: '#8f7466', fog: [20, 66], sun: '#ffd2b0', sunI: .9, hemi: ['#f4d6c6', '#3a1f19', .22], exp: .86,
     env: ['#684838', '#ffe4c4', '#583828'], wall: ['circusStripes', 256, .85], floor: ['circusFloor', 256, .95],
-    open: .4, pillar: .35, desks: .55, teleports: true, style: 'circus', sol: 'humide', items: true, sw: ['#99372f', '#e0d3b5'],
+    open: .4, pillar: .35, desks: .55, style: 'circus', sol: 'humide', items: true, sw: ['#99372f', '#e0d3b5'],
   },
 };
 let theme = THEMES.hall, curWallMat = null;
@@ -470,9 +470,9 @@ const inWater = p => { const i = w2c(p.x), j = w2c(p.z); return i >= 0 && j >= 0
 const WATER_SLOW = .75;
 function speedMul(e) { return e && e.sprintT > 0 ? 1.7 : 1; }
 // modes choisis dans le menu (mémorisés) et modes actifs pour la partie en cours
-const MODES = { walls: false, gas: false, skills: false };
+const MODES = { walls: false, gas: false, skills: false, tp: false };
 try { Object.assign(MODES, JSON.parse(localStorage.getItem('pz-modes') || '{}')); } catch (e) {}
-let GM = { walls: false, gas: false, skills: false };
+let GM = { walls: false, gas: false, skills: false, tp: false };
 const w2c = v => Math.floor((v + HALF) / CELL);
 const c2w = i => i * CELL - HALF + CELL / 2;
 
@@ -703,7 +703,7 @@ function dressFloor(th, mode, group) {
   });
 }
 
-let TP = [], tpMeshes = [], fireflies = null;
+let TP = [], tpMeshes = [], fireflies = null, buildingGame = false;
 function genTeleports() {
   const cells = []; for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) if (grid[j * W + i] === 0) cells.push([c2w(i), c2w(j)]);
   const out = [], used = [], far = W * CELL * .42;
@@ -843,7 +843,7 @@ function buildWorld(th, gridStr, size, extra) {
 
   const cnt = [0, 0, 0, 0]; for (let k = 0; k < grid.length; k++) cnt[grid[k]]++;
   const inst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); m.count = n; return m; };
-  const floors = inst(tiledBox(CELL, 1, CELL), matFloor, cnt[0] + cnt[3]);
+  const floors = inst(tiledBox(CELL, 1, CELL), matFloor, cnt[0] + cnt[1] + cnt[3]);
   const plane  = new THREE.PlaneGeometry(CELL, CELL).rotateX(-Math.PI / 2);
   if (th.pools || th.rivers) { matPool.map = th.rivers ? tex('riverBed', 256) : tex('poolTiles', 512); matPool.emissiveIntensity = th.rivers ? .12 : .3; matPool.needsUpdate = true; }
   matWater.color.copy(lin(th.water || '#3f7d6c'));
@@ -861,7 +861,7 @@ function buildWorld(th, gridStr, size, extra) {
   const pipeSpots = [];
   for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
     const t = grid[j * W + i], x = c2w(i), z = c2w(j);
-    if (t === 0 || t === 3) { m.makeTranslation(x, -.5, z); floors.setMatrixAt(ix[0]++, m); }
+    if (t === 0 || t === 1 || t === 3) { m.makeTranslation(x, t === 1 ? -.501 : -.5, z); floors.setMatrixAt(ix[0]++, m); }
     if (t === 1) { if (th.pipes && Math.random() < th.pipes) pipeSpots.push([x, z]); }
     else if (t === 2) { m.makeTranslation(x, -.55, z); bottoms.setMatrixAt(ix[2], m); m.makeTranslation(x, -.02, z); water.setMatrixAt(ix[2]++, m); }
     else if (t === 3) {
@@ -878,7 +878,7 @@ function buildWorld(th, gridStr, size, extra) {
     for (const d of [drum, top, band]) { d.castShadow = d.receiveShadow = true; world.add(d); }
   }
   world.add(floors, bottoms, water, dTop, dBase, dMon, dWall);
-  TP = gridStr ? ((extra && extra.tp) || []) : (th.teleports ? genTeleports() : []);
+  TP = gridStr ? ((extra && extra.tp) || []) : (buildingGame && GM.tp ? genTeleports() : []);
   buildTeleports(world);
   buildStyleDecor(th, world, inst);
   const solMode = SOL !== 'off' ? SOL : (th.sol || 'off');
@@ -1275,7 +1275,7 @@ function animMoves(dt, remote) {
 
 // ----- gaz violet (Sleeping Room) -----
 const GZ = { cx: 0, cz: 0, r: 999, r0: 60, rMin: 3.5, t: 0, on: false };
-const GAS_SHRINK = 20, GAS_HIT = 1.6;
+const GAS_SHRINK = 30, GAS_HIT = 1.6;
 const gasGroup = new THREE.Group(); gasGroup.visible = false; scene.add(gasGroup);
 const gasFloor = new THREE.Mesh(new THREE.RingGeometry(1, 60, 96).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: lin('#7a2fc7'), transparent: true, opacity: .42, depthWrite: false }));
 const gasWall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 7, 96, 1, true), new THREE.MeshBasicMaterial({ color: lin('#9a4cf0'), transparent: true, opacity: .2, side: THREE.DoubleSide, depthWrite: false }));
@@ -1328,7 +1328,7 @@ function gasVisual(dt) {
 const SKILLS = {
   invis:  { n: 'Invisibilité',   d: '4 s invisible pour tout le monde, même le virus. Recharge 20 s.', uses: 99, dur: 4, cd: 20 },
   ghost:  { n: 'Passe-muraille', d: '3 s à travers les murs. Recharge 15 s.', uses: 99, dur: 3, cd: 15 },
-  life:   { n: 'Seconde vie',    d: 'Tu survis à une explosion ou au gaz, une fois par manche.', passive: true, uses: 1 },
+  life:   { n: 'Seconde vie',    d: 'Tu survis une seule fois dans la partie (explosion ou gaz).', passive: true, uses: 1 },
   sprint: { n: 'Sprint',         d: 'Vitesse ×1,7 pendant 2 s. Recharge 10 s.', uses: 99, dur: 2, cd: 10 },
   lob:    { n: 'Lancer lourd',   d: 'Tes lancers passent au-dessus des murs et vont plus loin.', passive: true },
   radar:  { n: 'Radar',          d: 'Toutes les 25 à 45 s, tu vois tout le monde 5 s (même invisible).', passive: true },
@@ -1336,12 +1336,12 @@ const SKILLS = {
 const SKILL_IDS = Object.keys(SKILLS);
 function assignSkills() {
   const pool = SKILL_IDS.slice().sort(() => Math.random() - .5);
-  ents.forEach((e, i) => { e.skill = GM.skills ? pool[i % pool.length] : null; });
+  ents.forEach((e, i) => { e.skill = GM.skills ? pool[i % pool.length] : null; e.lifeLeft = e.skill === 'life' ? 1 : 0; });
 }
 function skillsStartRound() {
   for (const e of ents) {
     e.invisT = e.ghostT = e.sprintT = e.skCd = 0;
-    const d = e.skill && SKILLS[e.skill]; e.skUses = d && d.uses ? d.uses : 0;
+    const d = e.skill && SKILLS[e.skill]; e.skUses = e.skill === 'life' ? (e.lifeLeft || 0) : (d && d.uses ? d.uses : 0);
     if (e.skill === 'radar') e.radarT = rnd(12, 25);
   }
 }
@@ -1356,8 +1356,8 @@ function useSkill(e) {
   return true;
 }
 function useLife(e) {
-  if (e.skill !== 'life' || !(e.skUses > 0)) return false;
-  e.skUses = 0; e.hp = 3; e.gasT = GAS_HIT;
+  if (e.skill !== 'life' || !(e.lifeLeft > 0)) return false;
+  e.lifeLeft = 0; e.skUses = 0; e.hp = 3; e.gasT = GAS_HIT;
   msg(e.isYou ? 'Seconde vie !' : `${e.name} : seconde vie`, 'Pas cette fois.', 1.6); tone(523, .4, 'triangle', .08, 1046);
   return true;
 }
@@ -1416,7 +1416,7 @@ function skillsVisual() {
   btn.hidden = box.hidden || !!d.passive;
   if (box.hidden) return;
   box.querySelector('b').textContent = d.n; box.querySelector('span').textContent = d.d;
-  box.querySelector('em').textContent = d.passive ? 'Ta compétence · passive' : `Ta compétence · ${isTouch ? 'bouton' : 'touche R'} · ${me.skCd > 0 ? 'recharge ' + Math.ceil(me.skCd) + ' s' : 'prête'}`;
+  box.querySelector('em').textContent = me.skill === 'life' ? (me.skUses > 0 ? 'Ta compétence · 1 vie en réserve' : 'Ta compétence · déjà utilisée') : d.passive ? 'Ta compétence · passive' : `Ta compétence · ${isTouch ? 'bouton' : 'touche R'} · ${me.skCd > 0 ? 'recharge ' + Math.ceil(me.skCd) + ' s' : 'prête'}`;
   if (!d.passive) {
     const full = (d.cd || 0) + (d.dur || 0), pr = me.skCd > 0 && full ? 1 - me.skCd / full : 1;
     btn.style.setProperty('--p', pr.toFixed(3));
@@ -1559,9 +1559,9 @@ function newGame() {
   for (const d of debris) scene.remove(d.m); debris.length = 0;
   clearItems(); clearPrints();
   const slots = makeSlots(); NET.slots = slots;
-  GM = { walls: MODES.walls || sel === 'x', gas: MODES.gas, skills: MODES.skills };
+  GM = { walls: MODES.walls || sel === 'x', gas: MODES.gas, skills: MODES.skills, tp: MODES.tp };
   moves = []; movesDone = []; mvT = 3;
-  buildWorld(pickTheme(), null, mapSizeFor(slots.length));
+  buildingGame = true; buildWorld(pickTheme(), null, mapSizeFor(slots.length)); buildingGame = false;
   itemsOn = itemsMode === 'on' || (itemsMode === 'auto' && !!theme.items); itemT = 3;
   ents = slots.map((sl, i) => { const e = makeEnt(i, sl.name, i === NET.slot); if (sl.skin != null) applySkin(e, sl.skin); e.netId = sl.netId; e.remote = !!sl.netId; return e; });
   assignSkills();
@@ -2239,7 +2239,7 @@ function saveGame() {
   };
   try { sessionStorage.setItem('pz-save', JSON.stringify(sv)); } catch (e) {}
 }
-function saveExtra() { return { gm: GM, sk: ents.map(e => e.skill || null) }; }
+function saveExtra() { return { gm: GM, sk: ents.map(e => e.skill || null), lf: ents.map(e => e.lifeLeft || 0) }; }
 function clearSave() { try { sessionStorage.removeItem('pz-save'); } catch (e) {} }
 function addTempWall(k, life, sy) {
   const m = new THREE.Mesh(tiledBox(CELL, WALL_H + 1, CELL), curWallMat); m.castShadow = m.receiveShadow = true;
@@ -2279,7 +2279,7 @@ function restoreGame(sv) {
   else if (vs && vs.mode !== 'gone') { v.pos.set(vs.x, .55, vs.z); v.wake = .5; v.crawlT = 0; if (sv.timer !== null) { timer = sv.timer; roundTime = sv.roundTime; } }
   msg('Partie reprise', 'Tu étais parti, on continue', 1.8);
 }
-function restoreExtra(x) { if (x.gm) GM = x.gm; if (x.sk) ents.forEach((e, i) => { e.skill = x.sk[i] || null; }); }
+function restoreExtra(x) { if (x.gm) GM = x.gm; if (x.sk) ents.forEach((e, i) => { e.skill = x.sk[i] || null; e.lifeLeft = x.lf ? x.lf[i] || 0 : (e.skill === 'life' ? 1 : 0); }); }
 function hostSendMaps() {
   const base = mapMsg();
   NET.slots.forEach((sl, i) => { if (sl.netId) netPost(Object.assign({}, base, { you: i }), sl.netId); });
@@ -2619,6 +2619,8 @@ if (/[?&]test\b/.test(location.search)) window.__pz = {
   spec() { const t = specTarget(); return t ? t.name : null; },
   specNext() { specCycle(1); return this.spec(); },
   modes(o) { Object.assign(MODES, o); renderModes(); return MODES; },
+  tpCount() { return TP.length; },
+  lifeTest() { const e = ents.find(x => x.skill === 'life'); if (!e) return 'personne'; const a = useLife(e); startRound(); const b = useLife(e); startRound(); const c = useLife(e); return { joueur: e.name, '1re mort': a, '2e mort (manche suivante)': b, '3e mort': c }; },
   modeInfo() { return { GM, moves: moves.length, faits: movesDone.length, gaz: GZ.on ? [r2(GZ.r)] : null, pv: ents.map(e => e.hp), skills: ents.map(e => e.skill), usages: ents.map(e => e.skUses), invisible: ents.map(e => invisible(e)), fantome: ents.map(e => e.ghostT > 0) }; },
   skill() { return useSkill(you()); },
   waterCell() { for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) if (grid[j * W + i] === 2 && grid[j * W + i + 1] === 2) return [i, j]; return null; },
