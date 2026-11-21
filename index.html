@@ -106,6 +106,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .link{font:500 12px/1.4 var(--mono);word-break:break-all;background:#f3efe4;padding:9px 10px;border:1px solid var(--line);user-select:all;-webkit-user-select:all}
 .joinrow{display:flex;gap:8px}
 .joinrow .btn{flex:1}
+.pseudo-fixed{font:900 18px/1 var(--sans);letter-spacing:-.01em;border-bottom:2px solid var(--ink);padding-bottom:2px}
 #pseudoBtn{flex:0 0 auto;padding:9px 12px;font-size:12px}
 #pseudoBtn[disabled]{opacity:.55;cursor:default}
 .code-in{width:110px;text-transform:uppercase;letter-spacing:.2em;font-family:var(--mono);text-align:center}
@@ -210,7 +211,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <button class="btn" id="play">Jouer</button>
     <div class="net" id="net" hidden>
       <div class="lvhead" id="netHead">Avec des amis</div>
-      <div class="opt"><span>Ton pseudo <em id="pseudoOk" class="skn"></em></span><div class="joinrow"><input id="pseudo" class="inp" maxlength="14" placeholder="Ton pseudo" autocomplete="nickname" enterkeyhint="done"><button class="btn ghost" id="pseudoBtn" type="button">Valider</button></div></div>
+      <div class="opt"><span>Ton pseudo <em id="pseudoOk" class="skn"></em></span><b id="pseudoFixed" class="pseudo-fixed" hidden></b><div class="joinrow" id="pseudoRow"><input id="pseudo" class="inp" maxlength="14" placeholder="Ton pseudo" autocomplete="nickname" enterkeyhint="done"><button class="btn ghost" id="pseudoBtn" type="button">Valider</button></div></div>
       <div id="netBody"></div>
     </div>
     <div class="ctl">PC : ZQSD ou flèches + Espace · Téléphone : glisse à gauche, bouton à droite</div>
@@ -1014,7 +1015,7 @@ function makeEnt(idx, nm = NAMES[idx], isMe = idx === 0) {
   ring.rotation.x = -Math.PI / 2; ring.position.y = .02; g.add(ring);
   scene.add(g);
   const lab = document.createElement('div');
-  lab.className = 'lab' + (isMe ? ' you' : ''); lab.textContent = isMe ? 'Toi' : nm; lab.style.setProperty('--c', COLS[idx]); lab.dataset.n = 'S-0' + (idx + 1);
+  lab.className = 'lab' + (isMe ? ' you' : ''); lab.textContent = nm; lab.style.setProperty('--c', COLS[idx]); lab.dataset.n = 'S-0' + (idx + 1);
   labs.appendChild(lab);
   return {
     idx, name: nm, col: COLS[idx], isYou: isMe, g, inner, lab, legs, arms, walk: 0, suit, suitD,
@@ -1590,7 +1591,7 @@ function botsFor(humans) { return Math.max(humans >= 2 ? 0 : 1, Math.min(botsN, 
 function humansNow() { return NET.role === 'host' ? 1 + Math.min(5, NET.guests.length) : 1; }
 function plannedTotal() { const h = humansNow(); return h + botsFor(h); }
 function makeSlots() {
-  if (NET.role !== 'host') return NAMES.slice(0, 1 + botsFor(1)).map((n, i) => ({ name: n, skin: i === 0 ? skin : null, netId: null }));
+  if (NET.role !== 'host') return NAMES.slice(0, 1 + botsFor(1)).map((n, i) => ({ name: i === 0 ? (NET.name || 'Toi') : n, skin: i === 0 ? skin : null, netId: null }));
   const sl = [{ name: NET.name || 'Hôte', skin, netId: null }];
   for (const g of NET.guests.slice(0, 5)) sl.push({ name: g.name, skin: g.skin, netId: g.id });
   const used = new Set(sl.map(x => x.name)), total = sl.length + botsFor(sl.length); let b = 1;
@@ -2568,12 +2569,16 @@ $('#netBody').addEventListener('click', e => {
 // pseudo : on tape, puis on valide (bouton ou touche Entrée)
 function pseudoDirty() { return ($('#pseudo').value.replace(/[<>&"'`]/g, '').trim().slice(0, 14)) !== NET.name; }
 function pseudoState() {
+  const locked = !!NET.name;
+  $('#pseudoRow').hidden = locked; $('#pseudoFixed').hidden = !locked;
+  if (locked) { $('#pseudoFixed').textContent = NET.name; $('#pseudoOk').textContent = 'validé'; return; }
   const d = pseudoDirty();
   $('#pseudoBtn').disabled = !d; $('#pseudoBtn').textContent = d ? 'Valider' : 'Validé ✓';
   $('#pseudoOk').textContent = d ? 'pas encore validé' : (NET.name ? 'enregistré' : '');
 }
 function pseudoValidate() {
   const v = $('#pseudo').value.replace(/[<>&"'`]/g, '').trim().slice(0, 14);
+  if (!v) { $('#pseudoOk').textContent = 'écris un pseudo'; $('#pseudo').focus(); return; }
   NET.name = v; $('#pseudo').value = v; try { localStorage.setItem('pz-name', v); } catch (er) {}
   if (NET.role === 'host') { renderNet(); hostLobby(); if (NET.ch && NET.mode === 'online') NET.ch.track({ role: 'host', id: NET.id, name: v || 'Hôte' }); }
   if (NET.role === 'guest' && NET.ch && NET.mode === 'online') NET.ch.track({ role: 'guest', id: NET.id, name: v || 'Invité', skin });
