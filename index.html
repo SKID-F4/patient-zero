@@ -1728,8 +1728,8 @@ function renderLevels() {
   const keys = Object.keys(THEMES);
   $('#lvls').innerHTML = keys.map(k => { const t = THEMES[k];
     return `<button class="lv" data-k="${k}" aria-pressed="${sel === k}"><div class="im"><img src="minis/${k}.jpg" alt="${t.name}"><span class="tick">✓</span></div><small>${t.lvl}</small><b>${t.name}</b></button>`; }).join('')
-    + `<button class="lv lvx" data-k="x" aria-pressed="${sel === 'x'}"><div class="im"><i>X</i><span class="tick">✓</span></div><small>Niveau X</small><b>Tout bouge</b></button>`
-    + `<button class="lv rnd" data-k="random" aria-pressed="${sel === 'random'}"><div class="im"><i>?</i><span class="tick">✓</span></div><small>Surprise</small><b>Au hasard</b></button>`;
+    + `<button class="lv lvx" data-k="x" aria-pressed="${sel === 'x'}"><div class="im"><i>X</i><span class="tick">✓</span></div><small>Tout bouge</small><b>Niveau X</b></button>`
+    + `<button class="lv rnd" data-k="random" aria-pressed="${sel === 'random'}"><div class="im"><i>?</i><span class="tick">✓</span></div><small>Au hasard</small><b>Surprise</b></button>`;
 }
 $('#lvls').addEventListener('click', e => {
   const b = e.target.closest('.lv'); if (!b) return;
