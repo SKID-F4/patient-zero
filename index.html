@@ -74,6 +74,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .opt{display:flex;align-items:center;justify-content:space-between;gap:10px;font:700 13px/1 var(--sans);flex-wrap:wrap}
 .skn{display:block;font:500 10px/1.4 var(--mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);margin-top:3px}
 .skins{display:flex;gap:7px}
+#botsSeg button{min-width:30px}
+#botsSeg button[disabled]{opacity:.3;cursor:default}
 .net{display:grid;gap:12px;border-top:1px solid var(--ink);padding-top:14px}
 .inp{font:inherit;font-size:15px;font-weight:600;border:1.5px solid var(--line);border-radius:3px;padding:8px 10px;width:160px;background:#faf8f2;color:var(--ink)}
 .inp:focus{outline:none;border-color:var(--ink)}
@@ -166,6 +168,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="lvhead" id="lvHead">Choisis la salle</div>
     <div class="lvls" id="lvls"></div>
     <div class="opt"><span>Ta combinaison <em id="skinName" class="skn"></em></span><div class="skins" id="skins"></div></div>
+    <div class="opt" id="optBots"><span>Bots <em id="botsHint" class="skn"></em></span><div class="seg" id="botsSeg"><button data-v="0" aria-pressed="false">0</button><button data-v="1" aria-pressed="false">1</button><button data-v="2" aria-pressed="false">2</button><button data-v="3" aria-pressed="false">3</button><button data-v="4" aria-pressed="false">4</button><button data-v="5" aria-pressed="false">5</button></div></div>
     <div class="opt" id="optItems"><span>Objets bonus</span><div class="seg" id="itemsSeg"><button data-v="auto" aria-pressed="true">Auto</button><button data-v="on" aria-pressed="false">Toujours</button><button data-v="off" aria-pressed="false">Jamais</button></div></div>
     <button class="btn" id="play">Jouer</button>
     <div class="net" id="net" hidden>
@@ -196,7 +199,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 const $ = s => document.querySelector(s);
 
 /* ---------- constantes ---------- */
-const CELL = 3, W = 26, H = 26, WALL_H = 3.2, HALF = W * CELL / 2;
+const CELL = 3, WALL_H = 3.2;
+let W = 21, H = 21, HALF = W * CELL / 2;
+// carte proportionnée au nombre de joueurs (multiple de 5 salles + 1 pour les murs)
+const mapSizeFor = n => n <= 2 ? 11 : n <= 4 ? 16 : 21;
+function setMapSize(n) { W = H = n; HALF = W * CELL / 2; }
 const RANGE = 9, R_BODY = .5;
 const NAMES = ['Toi', 'Léa', 'Nino', 'Sami', 'Yuna', 'Malo'];
 const COLS  = ['#ff4d2e', '#2f6bff', '#15a36b', '#e9a400', '#9b4dff', '#ff5fa8'];
@@ -588,11 +595,12 @@ function dressFloor(th, mode, group) {
   });
 }
 
-function buildWorld(th, gridStr) {
+function buildWorld(th, gridStr, size) {
   theme = th;
   if (world) scene.remove(world);
   world = new THREE.Group();
   applyLook(th);
+  setMapSize(gridStr ? Math.round(Math.sqrt(gridStr.length)) : (size || mapSizeFor(plannedTotal())));
   if (gridStr) grid = Uint8Array.from(gridStr, c => +c); else genMap(th);
   const matWall = surfMat(th.wall), matFloor = surfMat(th.floor);
   curWallMat = matWall;
@@ -777,7 +785,8 @@ const SKINS = [
   { n: 'Bleu labo', c: '#4d6d8c' }, { n: 'Orange risque', c: '#c0612b' }, { n: 'Jaune hazmat', c: '#c4a338' },
   { n: 'Blanc stérile', c: '#d6d3c8' }, { n: 'Vert kaki', c: '#5a6644' }, { n: 'Noir', c: '#2c2c2e' },
 ];
-let skin = 0;
+let skin = 0, botsN = 5;
+try { const bv = localStorage.getItem('pz-bots'); if (bv !== null) botsN = Math.max(0, Math.min(5, +bv || 0)); } catch (e) {}
 try { skin = Math.min(SKINS.length - 1, Math.max(0, +localStorage.getItem('pz-skin') || 0)); } catch (e) {}
 function applySkin(e, k) { const c = lin(SKINS[k].c); e.suit.color.copy(c); e.suitD.color.copy(c).multiplyScalar(.72); }
 
@@ -1027,9 +1036,9 @@ function newGame() {
   for (const s of splats) scene.remove(s); splats.length = 0;
   for (const d of debris) scene.remove(d.m); debris.length = 0;
   clearItems(); clearPrints();
-  buildWorld(pickTheme());
-  itemsOn = itemsMode === 'on' || (itemsMode === 'auto' && !!theme.items); itemT = 3;
   const slots = makeSlots(); NET.slots = slots;
+  buildWorld(pickTheme(), null, mapSizeFor(slots.length));
+  itemsOn = itemsMode === 'on' || (itemsMode === 'auto' && !!theme.items); itemT = 3;
   ents = slots.map((sl, i) => { const e = makeEnt(i, sl.name, i === NET.slot); if (sl.skin != null) applySkin(e, sl.skin); e.netId = sl.netId; e.remote = !!sl.netId; return e; });
   // apparitions éloignées les unes des autres
   const cells = freeCells(), used = [];
@@ -1051,12 +1060,16 @@ function newGame() {
   startRound();
   if (NET.role === 'host') hostSendMaps();
 }
+// combien de bots on ajoute vraiment : au moins 2 joueurs au total, 6 au maximum
+function botsFor(humans) { return Math.max(humans >= 2 ? 0 : 1, Math.min(botsN, 6 - humans)); }
+function humansNow() { return NET.role === 'host' ? 1 + Math.min(5, NET.guests.length) : 1; }
+function plannedTotal() { const h = humansNow(); return h + botsFor(h); }
 function makeSlots() {
-  if (NET.role !== 'host') return NAMES.map((n, i) => ({ name: n, skin: i === 0 ? skin : null, netId: null }));
+  if (NET.role !== 'host') return NAMES.slice(0, 1 + botsFor(1)).map((n, i) => ({ name: n, skin: i === 0 ? skin : null, netId: null }));
   const sl = [{ name: NET.name || 'Hôte', skin, netId: null }];
   for (const g of NET.guests.slice(0, 5)) sl.push({ name: g.name, skin: g.skin, netId: g.id });
-  const used = new Set(sl.map(x => x.name)); let b = 1;
-  while (sl.length < 6) { while (b < NAMES.length - 1 && used.has(NAMES[b])) b++; sl.push({ name: NAMES[b++] || 'Bot', skin: null, netId: null }); }
+  const used = new Set(sl.map(x => x.name)), total = sl.length + botsFor(sl.length); let b = 1;
+  while (sl.length < total) { while (b < NAMES.length - 1 && used.has(NAMES[b])) b++; sl.push({ name: NAMES[b++] || 'Bot', skin: null, netId: null }); }
   return sl;
 }
 
@@ -1068,7 +1081,7 @@ function startRound() {
   for (let t = 0; t < 80 && !pick; t++) {
     const c = cells[Math.random() * cells.length | 0], p = { x: c2w(c[0]), z: c2w(c[1]) };
     const m = Math.min(...ps.map(e => d2(e.pos, p)));
-    if (m > 9 && m < 20) pick = p;
+    if (m > Math.min(9, HALF * .4) && m < 20) pick = p;
   }
   if (!pick) { const c = cells[Math.random() * cells.length | 0]; pick = { x: c2w(c[0]), z: c2w(c[1]) }; }
   virus.pos.set(pick.x, .55, pick.z); virus.mode = 'crawl'; virus.crawlT = 0; virus.exclude = null; virus.excludeT = 0; virus.wake = 1.3; virus.g.visible = true; virus.map = null; virus.mapT = 0;
@@ -1215,6 +1228,22 @@ $('#skins').addEventListener('click', e => {
   renderSkins();
 });
 renderSkins();
+function renderBots() {
+  const h = humansNow(), n = h + botsFor(h), taille = n <= 2 ? 'petite carte' : n <= 4 ? 'carte moyenne' : 'grande carte';
+  for (const b of $('#botsSeg').children) {
+    const v = +b.dataset.v, off = v > 6 - h || (h < 2 && v === 0);
+    b.setAttribute('aria-pressed', String(v === botsN)); b.disabled = off;
+    b.title = off ? (v === 0 ? 'Il faut au moins un adversaire' : 'Plus de place') : '';
+  }
+  $('#botsHint').textContent = `${n} joueurs · ${taille}`;
+}
+$('#botsSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  botsN = +b.dataset.v; try { localStorage.setItem('pz-bots', botsN); } catch (er) {}
+  renderBots();
+  if (state === 'menu' && sel !== 'random') buildWorld(THEMES[sel]);
+});
+renderBots();
 function pickTheme() { const ks = Object.keys(THEMES); return THEMES[sel === 'random' ? ks[Math.random() * ks.length | 0] : sel]; }
 $('#play').addEventListener('click', () => { audio(); $('#menu').hidden = true; newGame(); });
 $('#again').addEventListener('click', () => { audio(); $('#end').hidden = true; newGame(); });
@@ -1803,6 +1832,7 @@ function guestTick(dt) {
 
 /* ---------- réseau : menu du salon ---------- */
 function renderNet() {
+  renderBots();
   const box = $('#net');
   if (!NET.mode) { box.hidden = true; return; }
   box.hidden = false;
@@ -1841,7 +1871,7 @@ $('#pseudo').addEventListener('input', e => {
   NET.name = e.target.value.replace(/[<>&"'`]/g, '').slice(0, 14); try { localStorage.setItem('pz-name', NET.name); } catch (er) {}
   if (NET.role === 'host') { renderNet(); hostLobby(); }
 });
-if (SALON) { ['#lvHead', '#lvls', '#optItems', '#play'].forEach(sx => $(sx).hidden = true); }
+if (SALON) { ['#lvHead', '#lvls', '#optItems', '#optBots', '#play'].forEach(sx => $(sx).hidden = true); }
 (async () => {
   if (location.protocol.startsWith('http')) {
     try { const r = await fetch('api/info', { cache: 'no-store' }); if (r.ok && (r.headers.get('content-type') || '').includes('json')) { const j = await r.json(); if (j && j.port) { serverInfo = j; NET.mode = 'local'; } } } catch (e) {}
@@ -1854,6 +1884,7 @@ if (SALON) { ['#lvHead', '#lvls', '#optItems', '#play'].forEach(sx => $(sx).hidd
 if (/[?&]test\b/.test(location.search)) window.__pz = {
   sim(sec) { for (let k = 0; k < sec * 60; k++) { if (state === 'play' || state === 'boom') update(1 / 60); } visuals(1 / 60); renderer.render(scene, camera); return this.info(); },
   setSol(v) { SOL = v; return SOL; },
+  bots(n) { botsN = n; renderBots(); return { bots: botsN, total: plannedTotal(), carte: mapSizeFor(plannedTotal()) }; },
   tick(dt = 1 / 30, n = 1) { for (let k = 0; k < n; k++) step(dt); return this.info(); },
   mode(v) { NET.mode = v; renderNet(); return v; },
   net() { return { mode: NET.mode, role: NET.role, room: NET.room, slot: NET.slot, guests: NET.guests.map(g => g.name), lobby: NET.lobby, status: NET.status, inGame: NET.inGame, ents: ents.map(e => [e.name, e.remote ? 'distant' : e.isYou ? 'moi' : 'bot', r2(e.pos.x), r2(e.pos.z), e.alive]) }; },
