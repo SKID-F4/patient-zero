@@ -169,7 +169,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="opt" id="optItems"><span>Objets bonus</span><div class="seg" id="itemsSeg"><button data-v="auto" aria-pressed="true">Auto</button><button data-v="on" aria-pressed="false">Toujours</button><button data-v="off" aria-pressed="false">Jamais</button></div></div>
     <button class="btn" id="play">Jouer</button>
     <div class="net" id="net" hidden>
-      <div class="lvhead">Avec des amis · même Wi-Fi</div>
+      <div class="lvhead" id="netHead">Avec des amis</div>
       <div class="opt"><span>Ton pseudo</span><input id="pseudo" class="inp" maxlength="14" placeholder="Ton pseudo" autocomplete="nickname"></div>
       <div id="netBody"></div>
     </div>
@@ -189,6 +189,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
 <script>
 (() => {
 'use strict';
@@ -494,13 +495,34 @@ function dressFloor(th, mode, group) {
       g.fillStyle = gr; g.fillRect(...r);
     }
   }
+  // tache au contour irrégulier : un bord qui ondule et s'effiloche, jamais un rond
+  const blob = (x, y, r, col, a) => {
+    const n = 18 + (Math.random() * 10 | 0), f1 = 2 + (Math.random() * 3 | 0), f2 = 5 + (Math.random() * 4 | 0), p1 = rnd(0, 6), p2 = rnd(0, 6), sq = rnd(.55, 1), rot = rnd(0, 6.28);
+    const pts = [];
+    for (let k = 0; k < n; k++) {
+      const t = k / n * Math.PI * 2, rr = r * (.62 + .22 * Math.sin(t * f1 + p1) + .12 * Math.sin(t * f2 + p2) + rnd(-.08, .08));
+      const lx = Math.cos(t) * rr, ly = Math.sin(t) * rr * sq;
+      pts.push([x + lx * Math.cos(rot) - ly * Math.sin(rot), y + lx * Math.sin(rot) + ly * Math.cos(rot)]);
+    }
+    g.save(); g.filter = `blur(${Math.max(1, r * .14).toFixed(1)}px)`; g.fillStyle = `rgba(${col},${a})`;
+    g.beginPath(); g.moveTo((pts[n - 1][0] + pts[0][0]) / 2, (pts[n - 1][1] + pts[0][1]) / 2);
+    for (let k = 0; k < n; k++) { const q = pts[(k + 1) % n]; g.quadraticCurveTo(pts[k][0], pts[k][1], (pts[k][0] + q[0]) / 2, (pts[k][1] + q[1]) / 2); }
+    g.fill(); g.restore();
+  };
   // quelques petites taches, rien d'autre
   for (let k = 0; k < 16; k++) {
-    const x = Math.random() * S, y = Math.random() * S, r = rnd(6, 26), a = rnd(.12, .3);
-    const gr = g.createRadialGradient(x, y, 0, x, y, r);
-    gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(.7, `rgba(${rgb},${a * .45})`); gr.addColorStop(1, `rgba(${rgb},0)`);
-    g.save(); g.translate(x, y); g.scale(1, rnd(.5, 1)); g.rotate(rnd(0, 3)); g.translate(-x, -y);
-    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); g.restore();
+    const x = Math.random() * S, y = Math.random() * S, r = rnd(6, 24);
+    blob(x, y, r, rgb, rnd(.14, .3));
+    if (Math.random() < .5) blob(x + rnd(-r, r) * .6, y + rnd(-r, r) * .6, r * rnd(.3, .6), rgb, rnd(.1, .22));
+  }
+  // zones humides : sol mouillé, plus sombre, aux bords irréguliers (à la place des flaques rondes)
+  if (mode === 'humide' || mode === 'abandon') {
+    const wet = key === 'pool' ? '40,58,44' : rgb.split(',').map(v => Math.round(v * .6)).join(',');
+    for (let k = 0; k < (mode === 'humide' ? 9 : 4); k++) {
+      const x = Math.random() * S, y = Math.random() * S, r = rnd(18, 42);
+      blob(x, y, r, wet, rnd(.18, .3));
+      blob(x + rnd(-r, r) * .5, y + rnd(-r, r) * .4, r * rnd(.45, .75), wet, rnd(.12, .22));
+    }
   }
   for (let k = 0; k < 6; k++) {
     const x = Math.random() * S, y = Math.random() * S;
@@ -516,7 +538,7 @@ function dressFloor(th, mode, group) {
   decal.position.y = .004; decal.receiveShadow = true; group.add(decal);
 
   // flaques
-  const nP = mode === 'humide' ? 22 : mode === 'abandon' ? 6 : 0;
+  const nP = 0; // remplacées par les zones humides peintes au sol
   const cells = []; for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) if (grid[j * W + i] === 0) cells.push([i, j]);
   const nearWall = ([i, j]) => N4.some(([di, dj]) => grid[(j + dj) * W + i + di] === 1);
   const pickCell = (wallBias) => { for (let t = 0; t < 6; t++) { const c = cells[Math.random() * cells.length | 0]; if (!wallBias || nearWall(c) || Math.random() < .3) return c; } return cells[Math.random() * cells.length | 0]; };
@@ -958,19 +980,32 @@ let state = 'menu', holder = null, timer = null, roundTime = 0, round = 0, elim 
 let beepAcc = 0, beepPulse = 0, flickT = 0;
 let threatMap = null, threatT = 0, lastSec = -1, lastQ = -1, shake = 0, flash = 0, timeScale = 1, msgT = 0;
 /* ---------- réseau local : salons ---------- */
-const NET = { role: 'solo', room: null, id: Math.random().toString(36).slice(2, 12), es: null, guests: [], slots: [], slot: 0, name: '', lobby: null, status: '', inGame: false };
+const NET = { mode: null, ch: null, up: null, ups: {}, hostSeen: false, role: 'solo', room: null, id: Math.random().toString(36).slice(2, 12), es: null, guests: [], slots: [], slot: 0, name: '', lobby: null, status: '', inGame: false };
 try { NET.name = localStorage.getItem('pz-name') || ''; } catch (e) {}
-const SALON = (new URLSearchParams(location.search).get('salon') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+const SALON = (new URLSearchParams(location.search).get('salon') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
+// relais en ligne : canaux temps réel Supabase (aucune donnée stockée, juste des messages entre joueurs)
+const ONLINE = { url: 'https://jnstndbgukgkexzdtkwx.supabase.co', key: 'sb_publishable_EapsTFFTFIt_AGBYwpNY0Q_bjOQlo2l', site: 'https://skid-f4.github.io/patient-zero/' };
+let sbClient = null;
+function sb() {
+  if (!sbClient && window.supabase) sbClient = window.supabase.createClient(ONLINE.url, ONLINE.key, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 40 } } });
+  return sbClient;
+}
+const cleanName = n => String(n || '').replace(/[<>&"'`]/g, '').trim().slice(0, 14) || 'Invité';
 let serverInfo = null;
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const r2 = v => Math.round(v * 100) / 100;
 function netPost(m, to) {
   if (!NET.room) return;
-  fetch(`/api/send?room=${NET.room}&id=${NET.id}`, { method: 'POST', body: JSON.stringify(to ? { to, m } : { m }), keepalive: true }).catch(() => {});
+  if (NET.mode === 'online') {
+    if (NET.role === 'host') { if (NET.ch) NET.ch.send({ type: 'broadcast', event: 'down', payload: to ? { to, m } : { m } }); }
+    else if (NET.up) NET.up.send({ type: 'broadcast', event: 'up', payload: { m } });
+    return;
+  }
+  fetch(`api/send?room=${NET.room}&id=${NET.id}`, { method: 'POST', body: JSON.stringify(to ? { to, m } : { m }), keepalive: true }).catch(() => {});
 }
 function netListen(params, onMsg) {
   if (NET.es) NET.es.close();
-  NET.es = new EventSource(`/api/events?room=${NET.room}&id=${NET.id}&${params}`);
+  NET.es = new EventSource(`api/events?room=${NET.room}&id=${NET.id}&${params}`);
   NET.es.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } onMsg(m); };
 }
 const you = () => ents[NET.slot] || ents[0];
@@ -1530,11 +1565,40 @@ setInterval(() => { if (document.hidden && NET.role === 'host' && state !== 'men
 /* ---------- réseau : hôte ---------- */
 function themeKey() { return Object.keys(THEMES).find(k => THEMES[k] === theme); }
 async function hostCreate() {
+  if (NET.mode === 'online') {
+    const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    NET.room = Array.from({ length: 5 }, () => A[Math.random() * A.length | 0]).join('');
+    NET.role = 'host'; NET.guests = []; NET.slot = 0; NET.status = 'Ouverture du salon…';
+    onlineHost(); renderNet(); return;
+  }
   try {
-    const r = await fetch('/api/room', { method: 'POST' }); const { code } = await r.json();
+    const r = await fetch('api/room', { method: 'POST' }); const { code } = await r.json();
     NET.role = 'host'; NET.room = code; NET.guests = []; NET.slot = 0;
     netListen('host=1', hostMsg); renderNet();
   } catch (e) { NET.status = 'Impossible de créer le salon.'; renderNet(); }
+}
+function onlineHost() {
+  const c = sb();
+  NET.ch = c.channel(`pz:${NET.room}`, { config: { broadcast: { self: false }, presence: { key: NET.id } } });
+  NET.ch.on('presence', { event: 'sync' }, () => {
+    const st = NET.ch.presenceState(), present = [];
+    for (const k in st) for (const pr of st[k]) if (pr.role === 'guest' && pr.id) present.push(pr);
+    for (const pr of present) if (!NET.guests.find(g => g.id === pr.id)) { listenUp(pr.id); hostMsg({ t: 'join', id: pr.id, name: cleanName(pr.name), skin: Math.max(0, Math.min(SKINS.length - 1, +pr.skin || 0)) }); }
+    for (const g of NET.guests.slice()) if (!present.find(pr => pr.id === g.id)) {
+      hostMsg({ t: 'leave', id: g.id });
+      if (NET.ups[g.id]) { c.removeChannel(NET.ups[g.id]); delete NET.ups[g.id]; }
+    }
+  });
+  NET.ch.subscribe(st => {
+    if (st === 'SUBSCRIBED') { NET.ch.track({ role: 'host', id: NET.id, name: NET.name || 'Hôte' }); NET.status = ''; renderNet(); }
+    else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { NET.status = 'Le relais en ligne ne répond pas. Vérifie ta connexion.'; renderNet(); }
+  });
+}
+function listenUp(id) {
+  if (NET.ups[id]) return;
+  const ch = sb().channel(`pz:${NET.room}:u:${id}`, { config: { broadcast: { self: false } } });
+  ch.on('broadcast', { event: 'up' }, ({ payload }) => { if (payload && payload.m && typeof payload.m === 'object') hostMsg(Object.assign({}, payload.m, { from: id })); });
+  ch.subscribe(); NET.ups[id] = ch;
 }
 function hostLobby() { netPost({ t: 'lobby', names: [NET.name || 'Hôte', ...NET.guests.map(g => g.name)], st: state }); }
 function hostMsg(m) {
@@ -1577,13 +1641,35 @@ function hostSnap() {
   });
 }
 let netT = 0;
-function hostTick(dt) { if (!NET.room || state === 'menu' || !ents.length) return; netT -= dt; if (netT <= 0) { netT = .05; hostSnap(); } }
+function hostTick(dt) { if (!NET.room || state === 'menu' || !ents.length) return; netT -= dt; if (netT <= 0) { netT = NET.mode === 'online' ? .1 : .05; hostSnap(); } }
 
 /* ---------- réseau : invité ---------- */
 let snapG = null, elimSeen = new Set(), lastHolder = -2, lastRound = 0, lastVMode = '', lastSt = '', lastCharge = 0, guestSendT = 0;
 function guestJoin(code) {
   NET.role = 'guest'; NET.room = code; NET.status = 'Connexion…';
+  if (NET.mode === 'online') { onlineGuest(); renderNet(); return; }
   netListen(`name=${encodeURIComponent(NET.name || 'Invité')}&skin=${skin}`, guestMsg); renderNet();
+}
+function onlineGuest() {
+  const c = sb();
+  NET.up = c.channel(`pz:${NET.room}:u:${NET.id}`, { config: { broadcast: { self: false } } }); NET.up.subscribe();
+  NET.ch = c.channel(`pz:${NET.room}`, { config: { broadcast: { self: false }, presence: { key: NET.id } } });
+  NET.ch.on('broadcast', { event: 'down' }, ({ payload }) => {
+    if (!payload || !payload.m || typeof payload.m !== 'object') return;
+    if (payload.to && payload.to !== NET.id) return;
+    guestMsg(payload.m);
+  });
+  NET.ch.on('presence', { event: 'sync' }, () => {
+    const st = NET.ch.presenceState(); let host = false;
+    for (const k in st) for (const pr of st[k]) if (pr.role === 'host') host = true;
+    if (host) { if (!NET.hostSeen && !NET.inGame) { NET.status = 'En attente que l’hôte lance la partie…'; renderNet(); } NET.hostSeen = true; }
+    else if (NET.hostSeen) { NET.hostSeen = false; guestMsg({ t: 'hostgone' }); }
+    else { NET.status = 'L’hôte n’est pas (encore) dans le salon.'; renderNet(); }
+  });
+  NET.ch.subscribe(st => {
+    if (st === 'SUBSCRIBED') NET.ch.track({ role: 'guest', id: NET.id, name: NET.name || 'Invité', skin });
+    else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { NET.status = 'Le relais en ligne ne répond pas. Vérifie ta connexion.'; renderNet(); }
+  });
 }
 function guestMsg(m) {
   if (m.t === 'map') return guestStart(m);
@@ -1687,7 +1773,7 @@ function guestUpdate(dt) {
     if (isWall(w2c(me.pos.x), w2c(me.pos.z))) unstick(me.pos);
   }
   for (const e of ents) if (e !== me && e.net) {
-    const a = e.net, k = Math.min(1, dt * 14);
+    const a = e.net, k = Math.min(1, dt * (NET.mode === 'online' ? 9 : 14));
     e.pos.x += (a[0] - e.pos.x) * k; e.pos.z += (a[1] - e.pos.z) * k; e.vel.set(a[4], 0, a[5]);
   }
   if (m) {
@@ -1711,33 +1797,34 @@ function guestUpdate(dt) {
 }
 function guestTick(dt) {
   const me = you(); if (!NET.inGame || !me || !me.inited || !me.alive) return;
-  guestSendT -= dt; if (guestSendT > 0) return; guestSendT = .05;
+  guestSendT -= dt; if (guestSendT > 0) return; guestSendT = NET.mode === 'online' ? .12 : .05;
   netPost({ t: 'pos', x: r2(me.pos.x), z: r2(me.pos.z), yaw: r2(me.yaw), vx: r2(me.vel.x), vz: r2(me.vel.z) });
 }
 
 /* ---------- réseau : menu du salon ---------- */
 function renderNet() {
   const box = $('#net');
-  if (!serverInfo) { box.hidden = true; return; }
+  if (!NET.mode) { box.hidden = true; return; }
   box.hidden = false;
+  $('#netHead').textContent = NET.mode === 'online' ? 'Avec tes potes · en ligne' : 'Avec des amis · même Wi-Fi';
   $('#pseudo').value = NET.name;
   const b = $('#netBody'), st = NET.status ? `<div class="ctl">${esc(NET.status)}</div>` : '';
   if (NET.role === 'host') {
-    const ip = serverInfo.ips[0];
-    const link = `http://${ip || location.hostname}:${serverInfo.port}/?salon=${NET.room}`;
+    const ip = NET.mode === 'online' ? 'en ligne' : serverInfo.ips[0];
+    const link = NET.mode === 'online' ? `${ONLINE.site}?salon=${NET.room}` : `http://${ip || location.hostname}:${serverInfo.port}/?salon=${NET.room}`;
     b.innerHTML = `<div class="kick"><span>Ton salon</span><span>${NET.guests.length + 1}/6 joueurs</span></div>
       <div class="code">${NET.room}</div>
       <div class="link" id="roomLink">${esc(link)}</div>
       <button class="btn ghost" id="copyLink">Copier le lien</button>
       <ul class="plist"><li class="me">${esc(NET.name || 'Toi')} · hôte</li>${NET.guests.map(g => `<li>${esc(g.name)}</li>`).join('')}</ul>
-      <div class="ctl">${ip ? 'Envoie ce lien à tes amis connectés au même Wi-Fi. « Jouer » lance la partie pour tout le monde.' : 'Aucun réseau détecté : connecte ce PC au Wi-Fi.'}</div>${st}`;
+      <div class="ctl">${NET.mode === 'online' ? 'Envoie ce lien à tes potes, où qu’ils soient. « Jouer » lance la partie pour tout le monde.' : ip ? 'Envoie ce lien à tes amis connectés au même Wi-Fi. « Jouer » lance la partie pour tout le monde.' : 'Aucun réseau détecté : connecte ce PC au Wi-Fi.'}</div>${st}`;
   } else if (NET.role === 'guest') {
     b.innerHTML = `<div class="kick"><span>Salon ${esc(NET.room)}</span><span>${NET.lobby ? NET.lobby.length : '…'}/6</span></div>
       <ul class="plist">${(NET.lobby || []).map((n, i) => `<li${i ? '' : ' class="me"'}>${esc(n)}${i ? '' : ' · hôte'}</li>`).join('')}</ul>${st}`;
   } else if (SALON) {
     b.innerHTML = `<div class="kick"><span>Invitation</span><span>Salon ${esc(SALON)}</span></div><button class="btn" id="joinRoom">Rejoindre le salon</button>${st}`;
   } else {
-    b.innerHTML = `<button class="btn ghost" id="mkRoom">Créer un salon</button><div class="ctl">Tes amis sur le même Wi-Fi rejoignent avec un lien. Les places libres sont prises par des bots.</div>${st}`;
+    b.innerHTML = `<button class="btn ghost" id="mkRoom">Créer un salon</button><div class="ctl">${NET.mode === 'online' ? 'Tes potes rejoignent avec un lien, de n’importe où.' : 'Tes amis sur le même Wi-Fi rejoignent avec un lien.'} Les places libres sont prises par des bots.</div>${st}`;
   }
 }
 $('#netBody').addEventListener('click', e => {
@@ -1755,14 +1842,21 @@ $('#pseudo').addEventListener('input', e => {
   if (NET.role === 'host') { renderNet(); hostLobby(); }
 });
 if (SALON) { ['#lvHead', '#lvls', '#optItems', '#play'].forEach(sx => $(sx).hidden = true); }
-if (location.protocol.startsWith('http')) fetch('/api/info').then(r => r.ok ? r.json() : null).then(j => { serverInfo = j && j.port ? j : null; renderNet(); }).catch(() => {});
+(async () => {
+  if (location.protocol.startsWith('http')) {
+    try { const r = await fetch('api/info', { cache: 'no-store' }); if (r.ok && (r.headers.get('content-type') || '').includes('json')) { const j = await r.json(); if (j && j.port) { serverInfo = j; NET.mode = 'local'; } } } catch (e) {}
+  }
+  if (!NET.mode && window.supabase) NET.mode = 'online';
+  renderNet();
+})();
 
 // accès de test (?test) : avancer la simulation sans dépendre de l'affichage
 if (/[?&]test\b/.test(location.search)) window.__pz = {
   sim(sec) { for (let k = 0; k < sec * 60; k++) { if (state === 'play' || state === 'boom') update(1 / 60); } visuals(1 / 60); renderer.render(scene, camera); return this.info(); },
   setSol(v) { SOL = v; return SOL; },
   tick(dt = 1 / 30, n = 1) { for (let k = 0; k < n; k++) step(dt); return this.info(); },
-  net() { return { role: NET.role, room: NET.room, slot: NET.slot, guests: NET.guests.map(g => g.name), lobby: NET.lobby, status: NET.status, inGame: NET.inGame, ents: ents.map(e => [e.name, e.remote ? 'distant' : e.isYou ? 'moi' : 'bot', r2(e.pos.x), r2(e.pos.z), e.alive]) }; },
+  mode(v) { NET.mode = v; renderNet(); return v; },
+  net() { return { mode: NET.mode, role: NET.role, room: NET.room, slot: NET.slot, guests: NET.guests.map(g => g.name), lobby: NET.lobby, status: NET.status, inGame: NET.inGame, ents: ents.map(e => [e.name, e.remote ? 'distant' : e.isYou ? 'moi' : 'bot', r2(e.pos.x), r2(e.pos.z), e.alive]) }; },
   // banc d'essai : parties complètes à toute vitesse, avec contrôle des failles
   stress(k, mode = 'auto', games = 2, kill = true, dt = 1 / 40) {
     const r = { niveau: k, objets: mode, parties: 0, erreurs: [], dansMur: 0, nan: 0, virusDansMur: 0, rampeMax: 0, mancheMax: 0, secondes: 0, nonFinies: 0, mursPoses: 0, boules: 0 };
