@@ -228,6 +228,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div class="card">
     <div class="kick"><span id="setKick">Réglages</span><span id="setNote"></span></div>
     <h2>Pause</h2>
+    <div class="opt"><span>Ton pseudo <em id="sPseudoOk" class="skn"></em></span><div class="joinrow"><input id="sPseudo" class="inp" maxlength="14" placeholder="Ton pseudo" autocomplete="nickname" enterkeyhint="done"><button class="btn ghost" id="sPseudoBtn" type="button">Changer</button></div></div>
     <div class="opt"><span>Effets sonores</span><input type="range" id="sVol" min="0" max="100" step="1"></div>
     <div class="opt"><span>Ambiance</span><input type="range" id="sAmb" min="0" max="100" step="1"></div>
     <div class="opt"><span>Musique <em class="skn">tes sons, bientôt</em></span><input type="range" id="sMus" min="0" max="100" step="1"></div>
@@ -1598,7 +1599,7 @@ function syncSettingsUI() {
 function openSettings(on) {
   $('#settings').hidden = !on;
   paused = on && NET.role === 'solo' && (state === 'play' || state === 'boom');
-  if (on) syncSettingsUI();
+  if (on) { syncSettingsUI(); $('#sPseudo').value = NET.name; $('#sPseudoOk').textContent = ''; }
 }
 let ambNodes = [], ambTimer = null;
 function noiseBuf(sec) {
@@ -2886,9 +2887,17 @@ function pseudoState() {
   $('#pseudoBtn').disabled = !d; $('#pseudoBtn').textContent = d ? 'Valider' : 'Validé ✓';
   $('#pseudoOk').textContent = d ? 'pas encore validé' : (NET.name ? 'enregistré' : '');
 }
-function pseudoValidate() {
-  const v = $('#pseudo').value.replace(/[<>&"'`]/g, '').trim().slice(0, 14);
-  if (!v) { $('#pseudoOk').textContent = 'écris un pseudo'; $('#pseudo').focus(); return; }
+function pseudoValidate(fromSet) {
+  const inp = fromSet ? $('#sPseudo') : $('#pseudo'), ok = fromSet ? $('#sPseudoOk') : $('#pseudoOk');
+  const v = inp.value.replace(/[<>&"'`]/g, '').trim().slice(0, 14);
+  if (!v) { ok.textContent = 'écris un pseudo'; inp.focus(); return; }
+  if (fromSet) {
+    inp.value = v; inp.blur();
+    ok.textContent = v === NET.name ? 'inchangé' : (NET.role !== 'solo' && (state === 'play' || state === 'boom') ? 'changé ✓ · les autres le verront à la prochaine manche' : 'changé ✓');
+    if (v === NET.name) return;
+    // en partie : l'étiquette de ton perso change tout de suite chez toi
+    const me = ents.find(e => e.isYou); if (me) { me.name = v; me.lab.textContent = v; }
+  }
   NET.name = v; $('#pseudo').value = v; try { localStorage.setItem('pz-name', v); } catch (er) {}
   if (NET.role === 'host') { renderNet(); hostLobby(); if (NET.ch && NET.mode === 'online') NET.ch.track({ role: 'host', id: NET.id, name: v || 'Hôte' }); }
   if (NET.role === 'guest' && NET.ch && NET.mode === 'online') NET.ch.track({ role: 'guest', id: NET.id, name: v || 'Invité', skin });
@@ -2897,6 +2906,9 @@ function pseudoValidate() {
 $('#pseudo').addEventListener('input', pseudoState);
 $('#pseudo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); audio(); pseudoValidate(); } e.stopPropagation(); });
 $('#pseudoBtn').addEventListener('click', e => { e.stopPropagation(); audio(); pseudoValidate(); });
+$('#sPseudo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); audio(); pseudoValidate(true); } if (e.key !== 'Escape') e.stopPropagation(); });
+$('#sPseudo').addEventListener('keyup', e => e.stopPropagation());
+$('#sPseudoBtn').addEventListener('click', e => { e.stopPropagation(); audio(); pseudoValidate(true); });
 function enterGuestMenu(c) {
   SALON = c;
   ['#lvHead', '#lvls', '#optItems', '#optBots', '#optModes', '#play'].forEach(sx => { const el = $(sx); if (el) el.hidden = true; });
