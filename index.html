@@ -206,7 +206,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="lvls" id="lvls"></div>
     <div class="opt"><span>Ta combinaison <em id="skinName" class="skn"></em></span><div class="skins" id="skins"></div></div>
     <div class="opt" id="optBots"><span>Bots <em id="botsHint" class="skn"></em></span><div class="seg" id="botsSeg"><button data-v="0" aria-pressed="false">0</button><button data-v="1" aria-pressed="false">1</button><button data-v="2" aria-pressed="false">2</button><button data-v="3" aria-pressed="false">3</button><button data-v="4" aria-pressed="false">4</button><button data-v="5" aria-pressed="false">5</button></div></div>
-    <div class="opt" id="optModes"><span>Modes <em class="skn">à combiner</em></span><div class="chips" id="modeChips"><button data-m="walls" aria-pressed="false">Murs qui bougent</button><button data-m="gas" aria-pressed="false">Gaz violet</button><button data-m="skills" aria-pressed="false">Skills</button><button data-m="tp" aria-pressed="false">Téléporteurs</button></div></div>
+    <div class="opt" id="optModes"><span>Modes <em class="skn">à combiner</em></span><div class="chips" id="modeChips"><button data-m="walls" aria-pressed="false">Murs qui bougent</button><button data-m="gas" aria-pressed="false">Gaz toxique</button><button data-m="skills" aria-pressed="false">Skills</button><button data-m="tp" aria-pressed="false">Téléporteurs</button></div></div>
     <div class="opt" id="optItems"><span>Objets bonus</span><div class="seg" id="itemsSeg"><button data-v="auto" aria-pressed="true">Auto</button><button data-v="on" aria-pressed="false">Toujours</button><button data-v="off" aria-pressed="false">Jamais</button></div></div>
     <button class="btn" id="play">Jouer</button>
     <div class="net" id="net" hidden>
@@ -1277,6 +1277,7 @@ function animMoves(dt, remote) {
 // ----- gaz violet (Sleeping Room) -----
 const GZ = { cx: 0, cz: 0, r: 999, r0: 60, rMin: 3.5, t: 0, on: false };
 const GAS_SHRINK = 30, GAS_HIT = 1.6;
+const gasFinal = () => GZ.on && GZ.r <= GZ.rMin + .05;
 const gasGroup = new THREE.Group(); gasGroup.visible = false; scene.add(gasGroup);
 const gasFloor = new THREE.Mesh(new THREE.RingGeometry(1, 60, 96).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: lin('#7a2fc7'), transparent: true, opacity: .42, depthWrite: false }));
 const gasWall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 7, 96, 1, true), new THREE.MeshBasicMaterial({ color: lin('#9a4cf0'), transparent: true, opacity: .2, side: THREE.DoubleSide, depthWrite: false }));
@@ -1308,12 +1309,14 @@ function gasDeath(e) {
   if (holder === e) { holder = null; virus.mode = 'crawl'; virus.pos.set(e.pos.x, .55, e.pos.z); virus.wake = .4; virus.crawlT = 0; virus.map = null; }
   boomSnd(); shake = Math.max(shake, .35);
   const left = alive().length;
-  msg(e.isYou ? 'Endormi' : `${e.name} endormi`, e.isYou ? 'Le gaz t’a eu. Regarde la fin.' : (left > 1 ? `${left} encore debout` : ''), 2.2);
+  msg(e.isYou ? 'Intoxiqué' : `${e.name} intoxiqué`, e.isYou ? 'Le gaz toxique t’a eu. Regarde la fin.' : (left > 1 ? `${left} encore debout` : ''), 2.2);
   if (e.isYou) { $('#throw').hidden = true; $('#hint').hidden = true; }
   roster();
   if (left <= 1) { virus.mode = 'gone'; virus.g.visible = false; holder = null; timer = null; state = 'boom'; boomT = 2.4; }
 }
 function gasVisual(dt) {
+  if (GZ.on && gasFinal() && !GZ.finalSaid && (state === 'play')) { GZ.finalSaid = true; msg('Zone finale', 'Lancer instantané : Espace ou F', 1.8); tone(300, .4, 'sawtooth', .06, 900); }
+  if (!gasFinal()) GZ.finalSaid = false;
   gasGroup.visible = GZ.on && state !== 'menu';
   if (!gasGroup.visible) { $('#hearts').hidden = true; return; }
   gasFloor.scale.set(GZ.r, 1, GZ.r); gasWall.scale.set(GZ.r, 1, GZ.r);
@@ -1331,7 +1334,7 @@ const SKILLS = {
   ghost:  { n: 'Passe-muraille', d: '3 s à travers les murs. Recharge 15 s.', uses: 99, dur: 3, cd: 15 },
   life:   { n: 'Seconde vie',    d: 'Tu survis une seule fois dans la partie (explosion ou gaz).', passive: true, uses: 1 },
   sprint: { n: 'Sprint',         d: 'Vitesse ×1,7 pendant 2 s. Recharge 10 s.', uses: 99, dur: 2, cd: 10 },
-  lob:    { n: 'Lancer lourd',   d: 'Tes lancers passent au-dessus des murs et vont plus loin.', passive: true },
+  lob:    { n: 'Lancer lourd',   d: 'Toi seul lances par-dessus les murs (les autres rebondissent), et plus loin.', passive: true },
   radar:  { n: 'Radar',          d: 'Toutes les 25 à 45 s, tu vois tout le monde 5 s (même invisible).', passive: true },
 };
 const SKILL_IDS = Object.keys(SKILLS);
@@ -1635,7 +1638,17 @@ function doThrow(e, power = 1) {
   const v = virus, lob = e.skill === 'lob', reach = throwLen(power) * (lob ? 1.5 : 1);
   // la bombe peut revenir sur le lanceur s'il reste le plus proche : on ne le protège qu'un instant
   v.from.copy(v.g.position); v.ft = 0; v.sender = e; v.exclude = e; v.excludeT = .35; v.mode = 'fly';
-  if (n.d <= reach) { v.to = n.o; v.land = null; }
+  v.mid = null; v.bounced = false; v.arc = lob ? 4.6 : 3.2;
+  const ddx = n.o.pos.x - e.pos.x, ddz = n.o.pos.z - e.pos.z, ddl = Math.hypot(ddx, ddz) || 1, ux = ddx / ddl, uz = ddz / ddl;
+  // sans Lancer lourd, le premier mur sur la trajectoire renvoie la bombe vers le lanceur
+  let hit = null;
+  if (!lob) for (let sd = .4; sd < Math.min(reach, n.d); sd += .2) if (isWall(w2c(e.pos.x + ux * sd), w2c(e.pos.z + uz * sd))) { hit = sd; break; }
+  if (hit !== null) {
+    v.to = null;
+    const c = Math.max(.35, hit - .35);
+    v.mid = new THREE.Vector3(e.pos.x + ux * c, 1.3, e.pos.z + uz * c);
+    v.land = new THREE.Vector3(e.pos.x + ux * Math.min(.9, c * .4), .55, e.pos.z + uz * Math.min(.9, c * .4));
+  } else if (n.d <= reach) { v.to = n.o; v.land = null; }
   else {
     // saut vers le plus proche : la bombe retombe au sol et repart en rampant
     v.to = null;
@@ -1651,7 +1664,7 @@ function doThrow(e, power = 1) {
 }
 function attach(e, from) {
   holder = e; virus.mode = 'held';
-  e.grace = .7; e.noBack = from || null; e.noBackT = from ? 1.4 : 0; e.throwT = -1;
+  e.grace = gasFinal() ? 0 : .7; e.noBack = from || null; e.noBackT = from ? 1.4 : 0; e.throwT = -1;
   if (timer === null) { roundTime = rnd(15, 26); timer = roundTime; beepAcc = 0; }
   tone(140, .12, 'sawtooth', .08, 70);
   if (e.isYou) msg('Il est sur toi', 'Lance-le quand tu veux', 1.2);
@@ -1698,12 +1711,16 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { keys.delete(e.code); if (e.code === 'Space' || e.code === 'KeyE' || e.code === 'Enter') chargeRelease(); });
 let charging = false, chargeT = 0;
-function chargeStart() { if (state === 'play' && canThrow(you())) { charging = true; chargeT = 0; } }
+function chargeStart() {
+  if (state !== 'play' || !canThrow(you())) return;
+  if (gasFinal()) { charging = true; chargeT = CHARGE_TIME; chargeRelease(); return; } // zone finale : ça part tout de suite
+  charging = true; chargeT = 0;
+}
 function chargeRelease() {
   if (!charging) return; charging = false; const pw = chargeT / CHARGE_TIME; chargeT = 0;
   if (NET.role === 'guest') netPost({ t: 'throw', p: pw }); else doThrow(you(), pw);
 }
-addEventListener('keydown', e => { if (e.code === 'KeyF' && !e.repeat) { audio(); wallStart(); } });
+addEventListener('keydown', e => { if (e.code === 'KeyF' && !e.repeat) { audio(); if (gasFinal() && canThrow(you())) chargeStart(); else wallStart(); } });
 addEventListener('keyup', e => { if (e.code === 'KeyF') wallRelease(); });
 addEventListener('keydown', e => { if (e.code === 'KeyR' && !e.repeat && state === 'play') { audio(); trySkill(); } });
 $('#skillBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audio(); trySkill(); });
@@ -1901,8 +1918,8 @@ function update(dt) {
       }
       const near = e === holder && canThrow(e) ? nearestOther(e) : null;
       const panic = timer !== null && timer / roundTime < .3;
-      if (near && (near.d < 5.5 || panic)) {
-        if (e.throwT < 0) e.throwT = rnd(.15, .7);
+      if (near && (near.d < 5.5 || panic) && (e.skill === 'lob' || los(e.pos, near.o.pos))) {
+        if (e.throwT < 0) e.throwT = gasFinal() ? rnd(.05, .2) : rnd(.15, .7);
         else if ((e.throwT -= dt) <= 0) doThrow(e, (near.d - THROW_MIN) / (THROW_MAX - THROW_MIN) + rnd(-.1, .15));
       }
     }
@@ -1965,6 +1982,7 @@ function updateVirus(dt) {
     if (isWall(w2c(v.pos.x), w2c(v.pos.z))) unstick(v.pos);
     if (v.wake <= 0) {
       v.crawlT += dt;
+      if (v.tgt && invisible(v.tgt)) { v.tgt = null; v.map = null; v.mapT = 0; }
       v.mapT -= dt;
       if (v.mapT <= 0 || !v.map) {
         v.mapT = .3;
@@ -1983,8 +2001,8 @@ function updateVirus(dt) {
         v.yaw = lerpAngle(v.yaw, Math.atan2(tmpV.x, tmpV.z), dt * 8);
         for (const e of alive()) if (d2(v.pos, e.pos) < 1.05 && !(e === v.exclude && v.excludeT > 0) && !invisible(e)) { v.g.position.copy(v.pos); attach(e, v.exclude); break; }
         // l'araignée bondit quand elle est assez près (ou qu'elle s'impatiente)
-        if (v.mode === 'crawl' && (v.crawlT > 5 || (d2(v.pos, v.tgt.pos) < 5 && los(v.pos, v.tgt.pos)))) {
-          v.from.set(v.pos.x, .55, v.pos.z); v.to = v.tgt; v.land = null; v.ft = 0; v.sender = v.exclude; v.mode = 'fly';
+        if (v.mode === 'crawl' && v.tgt && !invisible(v.tgt) && (v.crawlT > 5 || (d2(v.pos, v.tgt.pos) < 5 && los(v.pos, v.tgt.pos)))) {
+          v.from.set(v.pos.x, .55, v.pos.z); v.to = v.tgt; v.land = null; v.mid = null; v.arc = 3.2; v.ft = 0; v.sender = v.exclude; v.mode = 'fly';
           tone(200, .25, 'sawtooth', .05, 600);
         }
       }
@@ -1992,9 +2010,18 @@ function updateVirus(dt) {
     if (v.mode === 'crawl') { v.g.position.set(v.pos.x, .55 + Math.abs(Math.sin(T * 14)) * .05, v.pos.z); v.g.rotation.y = v.yaw; v.g.scale.setScalar(v.wake > 0 ? 1 - v.wake * .4 : 1); }
   }
   if (v.mode === 'fly') {
-    v.ft += dt / .38;
-    const t = Math.min(1, v.ft), to = v.to ? v.to.pos : v.land, ty = v.to ? 2.45 : .55;
-    v.g.position.set(v.from.x + (to.x - v.from.x) * t, v.from.y + (ty - v.from.y) * t + Math.sin(Math.PI * t) * 3.2, v.from.z + (to.z - v.from.z) * t);
+    v.ft += dt / (v.mid ? .5 : .38);
+    const t = Math.min(1, v.ft);
+    // une cible devenue invisible en plein vol : la bombe retombe là où elle était
+    if (v.to && invisible(v.to)) { v.land = new THREE.Vector3(v.to.pos.x, .55, v.to.pos.z); v.to = null; }
+    if (v.mid) { // aller jusqu'au mur, puis rebond vers le lanceur
+      const a = t < .5 ? t / .5 : (t - .5) / .5, A = t < .5 ? v.from : v.mid, B = t < .5 ? v.mid : v.land;
+      v.g.position.set(A.x + (B.x - A.x) * a, A.y + (B.y - A.y) * a + Math.sin(Math.PI * a) * .8, A.z + (B.z - A.z) * a);
+      if (t >= .5 && !v.bounced) { v.bounced = true; tone(110, .12, 'square', .09, 55); shake = Math.max(shake, .12); }
+    } else {
+      const to = v.to ? v.to.pos : v.land, ty = v.to ? 2.45 : .55;
+      v.g.position.set(v.from.x + (to.x - v.from.x) * t, v.from.y + (ty - v.from.y) * t + Math.sin(Math.PI * t) * (v.arc || 3.2), v.from.z + (to.z - v.from.z) * t);
+    }
     v.g.rotation.y += dt * 14; v.g.scale.setScalar(.85);
     legMode = 'fly';
     if (t >= 1) {
@@ -2014,8 +2041,8 @@ function aimUpdate(dt) {
   if (charging) { if (!canThrow(you())) charging = false; else chargeT += dt; }
   aimMark.visible = charging;
   if (charging) {
-    const me = you(), n = nearestOther(me), L = throwLen(chargeT / CHARGE_TIME);
-    if (n) { const dx = n.o.pos.x - me.pos.x, dz = n.o.pos.z - me.pos.z, dl = Math.hypot(dx, dz) || 1, k = Math.min(L, n.d);
+    const me = you(), n = nearestOther(me), lobA = me.skill === 'lob', L = (lobA ? 1.5 : 1) * throwLen(chargeT / CHARGE_TIME);
+    if (n) { const dx = n.o.pos.x - me.pos.x, dz = n.o.pos.z - me.pos.z, dl = Math.hypot(dx, dz) || 1, k0 = Math.min(L, n.d); let k = k0; if (!lobA) for (let sd = .4; sd < k0; sd += .2) if (isWall(w2c(me.pos.x + dx / dl * sd), w2c(me.pos.z + dz / dl * sd))) { k = Math.max(.35, sd - .35); break; }
       aimMark.position.set(me.pos.x + dx / dl * k, .03, me.pos.z + dz / dl * k); aimMark.scale.setScalar(.8 + .2 * Math.sin(T * 12)); }
   }
 
@@ -2625,6 +2652,19 @@ if (/[?&]test\b/.test(location.search)) window.__pz = {
   specNext() { specCycle(1); return this.spec(); },
   modes(o) { Object.assign(MODES, o); renderModes(); return MODES; },
   tpCount() { return TP.length; },
+  bounceTest(lob) {
+    let spot = null;
+    for (let j = 2; j < H - 2 && !spot; j++) for (let i = 2; i < W - 3 && !spot; i++) if (grid[j * W + i] === 0 && grid[j * W + i + 1] === 1 && grid[j * W + i + 2] === 0) spot = [i, j];
+    if (!spot) return 'pas de mur fin trouvé';
+    const me = you(), other = ents.find(e => e !== me && e.alive);
+    ents.forEach(e => { if (e !== me && e !== other) { e.alive = false; e.g.visible = false; } });
+    me.pos.set(c2w(spot[0]), 0, c2w(spot[1])); other.pos.set(c2w(spot[0] + 2), 0, c2w(spot[1]));
+    me.skill = lob ? 'lob' : null; virus.mode = 'held'; holder = me; me.grace = 0; timer = 20; roundTime = 20;
+    const ok = doThrow(me, 1), info = { lancé: ok, rebond: !!virus.mid, cibleDirecte: virus.to ? virus.to.name : null };
+    for (let k = 0; k < 40; k++) update(1 / 60);
+    info.virusFinal = virus.mode; info.porteur = holder ? holder.name : null; info.distanceDeToi = r2(d2(virus.mode === 'held' && holder ? holder.pos : virus.pos, me.pos));
+    return info;
+  },
   lifeTest() { const e = ents.find(x => x.skill === 'life'); if (!e) return 'personne'; const a = useLife(e); startRound(); const b = useLife(e); startRound(); const c = useLife(e); return { joueur: e.name, '1re mort': a, '2e mort (manche suivante)': b, '3e mort': c }; },
   modeInfo() { return { GM, moves: moves.length, faits: movesDone.length, gaz: GZ.on ? [r2(GZ.r)] : null, pv: ents.map(e => e.hp), skills: ents.map(e => e.skill), usages: ents.map(e => e.skUses), invisible: ents.map(e => invisible(e)), fantome: ents.map(e => e.ghostT > 0) }; },
   skill() { return useSkill(you()); },
