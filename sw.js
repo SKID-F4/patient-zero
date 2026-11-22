@@ -1,6 +1,6 @@
 // Patient zéro : rend le jeu installable et jouable en solo sans réseau.
 // Toujours la version en ligne d'abord (pour avoir les mises à jour), la copie locale seulement en secours.
-const CACHE = 'pz-v1';
+const CACHE = 'pz-v2';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
   'minis/hall.jpg', 'minis/pool.jpg', 'minis/office.jpg', 'minis/pipes.jpg', 'minis/forest.jpg', 'minis/circus.jpg', 'minis/fond-menu.jpg'];
 
