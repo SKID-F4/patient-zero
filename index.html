@@ -6,6 +6,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#f6f6f3">
 <title>Patient zéro</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon-64.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Patient zéro">
 <meta name="description" content="Mini-jeu entre potes : un virus-bombe qui bipe dans les Backrooms. Ne sois pas celui qui le porte quand il explose.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Patient zéro — rejoins le salon">
@@ -1580,7 +1587,7 @@ function applyQuality() {
   sun.castShadow = !low; $('#grain').style.display = low ? 'none' : '';
   resize();
 }
-let paused = false, countT = 0;
+let paused = false, countT = 0, logoCam = null;
 function syncSettingsUI() {
   $('#sVol').value = SET.vol; $('#sAmb').value = SET.amb; $('#sMus').value = SET.mus;
   for (const [id, val] of [['#sMute', SET.mute ? '1' : '0'], ['#sQual', SET.quality], ['#sVib', SET.vib ? '1' : '0']]) for (const b of $(id).children) b.setAttribute('aria-pressed', String(b.dataset.v === val));
@@ -2322,7 +2329,8 @@ function visuals(dt) {
   const oy = portrait ? 40 : 28, oz = portrait ? 16 : 15;
   shake = Math.max(0, shake - dt * 1.6);
   const sx = shake ? rnd(-shake, shake) : 0, sz = shake ? rnd(-shake, shake) : 0;
-  if (state === 'menu') {
+  if (logoCam) { camera.position.copy(logoCam.p); camera.lookAt(logoCam.t); camera.fov = logoCam.fov || 30; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+  else if (state === 'menu') {
     const a = T * .08;
     camera.position.set(Math.sin(a) * 30, 24, Math.cos(a) * 30); camera.lookAt(0, 0, 0);
   } else {
@@ -2895,6 +2903,8 @@ function enterGuestMenu(c) {
   try { history.replaceState(null, '', location.pathname + '?salon=' + c + (/[?&]test\b/.test(location.search) ? '&test' : '')); } catch (e) {}
 }
 if (SALON) enterGuestMenu(SALON);
+// appli installable : copie locale pour jouer en solo sans réseau
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 (async () => {
   if (location.protocol.startsWith('http')) {
     try { const r = await fetch('api/info', { cache: 'no-store' }); if (r.ok && (r.headers.get('content-type') || '').includes('json')) { const j = await r.json(); if (j && j.port) { serverInfo = j; NET.mode = 'local'; } } } catch (e) {}
@@ -2927,6 +2937,37 @@ if (/[?&]test\b/.test(location.search)) window.__pz = {
   specNext() { specCycle(1); return this.spec(); },
   modes(o) { Object.assign(MODES, o); renderModes(); return MODES; },
   tpCount() { return TP.length; },
+  // séance photo pour le logo : décor réel, caméra posée à la main, sans interface
+  photo(v, lvl = 'pool') {
+    sel = lvl; itemsMode = 'off'; MODES.walls = MODES.gas = MODES.skills = MODES.tp = false; botsN = 1;
+    $('#menu').hidden = true; $('#end').hidden = true; newGame(); countT = 0; paused = true;
+    for (const sx of ['#roster', '#round', '#msg', '#throw', '#hint', '#labs', '#wallBtn', '#fast', '#quitBtn', '#gearBtn', '#skillBox', '#skillBtn', '#count', '#bombArrow', '#grain', '#vig', '#hearts', '#specBar']) { const el = $(sx); if (el) el.style.visibility = 'hidden'; }
+    $('#shade').style.opacity = v === 3 ? '1' : '.55';
+    PIX = 1; resize();
+    // une case libre entourée de sol
+    let c = null; const ok = (i, j) => grid[j * W + i] === 0;
+    for (let r = 0; r < W && !c; r++) for (let j = (H >> 1) - r; j <= (H >> 1) + r && !c; j++) for (let i = (W >> 1) - r; i <= (W >> 1) + r && !c; i++) if (i > 1 && j > 1 && i < W - 2 && j < H - 2 && ok(i, j) && ok(i + 1, j) && ok(i, j + 1) && ok(i - 1, j) && ok(i, j - 1)) c = [i, j];
+    const x = c2w(c[0]), z = c2w(c[1]), me = you();
+    ents.forEach(e => { e.g.visible = false; e.alive = false; });
+    virus.g.visible = true; virus.mode = 'crawl';
+    if (v === 1) { // gros plan sur l'araignée-virus
+      virus.g.position.set(x, .62, z); virus.g.scale.setScalar(1.4); virus.g.rotation.y = .5;
+      for (let k = 0; k < 8; k++) animVirus(virus, .02, .12, 'crawl');
+      logoCam = { p: new THREE.Vector3(x + 4.1, 2.9, z + 4.5), t: new THREE.Vector3(x, .75, z), fov: 30 };
+    } else if (v === 2) { // le porteur : un scientifique, le virus agrippé à la tête
+      me.alive = true; me.g.visible = true; me.pos.set(x, 0, z); me.vel.set(0, 0, 0); me.yaw = .5; holder = me; virus.mode = 'held';
+      virus.g.position.set(x, 2.45, z); virus.g.scale.setScalar(.9); virus.g.rotation.y = .5;
+      for (let k = 0; k < 8; k++) animVirus(virus, .02, .2, 'held');
+      logoCam = { p: new THREE.Vector3(x + 2.6, 2.6, z + 3.3), t: new THREE.Vector3(x, 1.75, z), fov: 32 };
+    } else { // vue du dessus, le virus seul au milieu du carrelage
+      virus.g.position.set(x, .62, z); virus.g.scale.setScalar(1.4);
+      for (let k = 0; k < 8; k++) animVirus(virus, .02, .1, 'crawl');
+      logoCam = { p: new THREE.Vector3(x + .01, 6.4, z + .6), t: new THREE.Vector3(x, 0, z), fov: 40 };
+    }
+    flickT = 0; sun.intensity = theme.sunI;
+    visuals(0); renderer.render(scene, camera);
+    return [x, z];
+  },
   netx() { return { role: NET.role, room: NET.room, guests: NET.guests.map(g => [g.name, !!g.ready]), lobby: NET.lobby, ready: NET.ready, lastSave: !!NET.lastSave, status: NET.status, inGame: NET.inGame }; },
   bounceTest(lob) {
     let spot = null;
