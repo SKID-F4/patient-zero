@@ -6,6 +6,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#f6f6f3">
 <title>Patient zéro</title>
+<meta name="description" content="Mini-jeu entre potes : un virus-bombe qui bipe dans les Backrooms. Ne sois pas celui qui le porte quand il explose.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Patient zéro — rejoins le salon">
+<meta property="og:description" content="Le virus bipe de plus en plus vite. Ne sois pas celui qui le porte quand il explose.">
+<meta property="og:image" content="https://skid-f4.github.io/patient-zero/og.jpg">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:url" content="https://skid-f4.github.io/patient-zero/">
+<meta name="twitter:card" content="summary_large_image">
 <style>
 :root{--bg:#f6f6f3;--ink:#0b0b0b;--ink2:#77756f;--line:#dcdbd5;color-scheme:light;
   --sans:"Archivo","Helvetica Neue",Arial,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
@@ -85,6 +93,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 #skillBox span{font:500 11px/1.3 var(--sans);color:#3c3a34}
 #skillBox em{font:500 10px/1 var(--mono);font-style:normal;color:var(--ink2);letter-spacing:.06em;text-transform:uppercase}
 #skillBox.on{background:var(--ink);color:#fff}#skillBox.on span,#skillBox.on em{color:#ddd}
+#count{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);font:900 clamp(90px,26vw,180px)/1 var(--sans);color:var(--ink);text-shadow:0 4px 0 #fff,0 0 30px rgba(255,255,255,.8);pointer-events:none}
+#count.go{color:#c8102e}
+#bombArrow{position:fixed;left:0;top:0;width:38px;height:38px;margin:-19px 0 0 -19px;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+#bombArrow svg{width:100%;height:100%}
+#gearBtn{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(140px + env(safe-area-inset-bottom));z-index:6;appearance:none;width:42px;height:42px;border-radius:50%;border:1.5px solid var(--ink);background:rgba(255,255,255,.92);font:400 22px/1 var(--sans);color:var(--ink)}
+@media (pointer:fine){#gearBtn{bottom:auto;top:calc(84px + env(safe-area-inset-top))}}
+#settings{z-index:7}
+#settings input[type=range]{width:150px;accent-color:#0b0b0b}
 #quitBtn{position:fixed;right:max(16px,env(safe-area-inset-right));top:calc(48px + env(safe-area-inset-top));appearance:none;border:1.5px solid var(--ink);background:rgba(255,255,255,.9);border-radius:999px;padding:6px 11px;font:700 11px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase}
 #radar{top:calc(84px + env(safe-area-inset-top))!important}
 #specBar{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.94);border:2px solid var(--ink);border-radius:999px;padding:6px 8px;font:600 13px/1 var(--sans);white-space:nowrap}
@@ -106,6 +122,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .link{font:500 12px/1.4 var(--mono);word-break:break-all;background:#f3efe4;padding:9px 10px;border:1px solid var(--line);user-select:all;-webkit-user-select:all}
 .joinrow{display:flex;gap:8px}
 .joinrow .btn{flex:1}
+.joinrow.share .btn{padding:11px 8px;font-size:12px}
+.qr{justify-self:center;padding:10px;background:#fff;border:2px solid var(--ink)}.qr img,.qr canvas{display:block}
 .pseudo-fixed{font:900 18px/1 var(--sans);letter-spacing:-.01em;border-bottom:2px solid var(--ink);padding-bottom:2px}
 #pseudoBtn{flex:0 0 auto;padding:9px 12px;font-size:12px}
 #pseudoBtn[disabled]{opacity:.55;cursor:default}
@@ -113,6 +131,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .plist{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .plist li{font:700 12px/1 var(--sans);border:1.5px solid var(--ink);padding:6px 10px;border-radius:999px}
 .plist li.me{background:var(--ink);color:#fff}
+.plist li.rdy{border-color:#1e7a46;color:#1e7a46}
+.plist .kick{appearance:none;border:0;background:none;margin-left:6px;font:800 14px/1 var(--sans);color:#c8102e;cursor:pointer;padding:0 2px}
 .sk{appearance:none;width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:var(--c);box-shadow:0 0 0 1.5px var(--line);padding:0}
 .sk[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--ink)}
 .seg{display:inline-grid;grid-auto-flow:column;border:1.5px solid var(--ink);border-radius:999px;overflow:hidden}
@@ -159,6 +179,20 @@ button{font:inherit;color:inherit;cursor:pointer}
 .lv.rnd .im{display:grid;place-items:center;background:repeating-linear-gradient(45deg,#efeadb 0 10px,#e4ddc8 10px 20px)}
 .lv.rnd .im i{font:900 30px/1 var(--sans);font-style:normal}
 #rank{margin:0;padding:0;list-style:none;border-top:1px solid var(--ink)}
+.est{width:100%;border-collapse:collapse;font:500 12px/1.2 var(--sans)}
+.est th{font:500 9.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);text-align:right;padding:6px 4px;border-bottom:1px solid var(--ink)}
+.est th:first-child,.est td:first-child{text-align:left}
+.est td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.est tr.me td{background:rgba(11,11,11,.06);font-weight:800}
+.est i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:6px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.badges span{font:700 11px/1 var(--sans);border:1.5px solid var(--ink);border-radius:999px;padding:5px 9px}
+.badges span b{font-weight:900}
+.ser{display:grid;gap:4px}
+.ser .row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;font:700 13px/1 var(--sans);padding:6px 0;border-bottom:1px solid var(--line)}
+.ser .row em{font:500 11px/1 var(--mono);font-style:normal;color:var(--ink2)}
+.ser .bar{height:5px;background:var(--line);grid-column:2/4;border-radius:3px;overflow:hidden}.ser .bar i{display:block;height:100%;background:var(--ink)}
+#endStats,#endSeries{display:grid;gap:6px}
 #rank li{display:grid;grid-template-columns:28px 14px 1fr auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-weight:700}
 #rank li .n{font:500 12px/1 var(--mono);color:var(--ink2)}
 #rank li i{width:10px;height:10px;border-radius:50%;background:var(--c)}
@@ -180,6 +214,25 @@ button{font:inherit;color:inherit;cursor:pointer}
 <button id="quitBtn" hidden>Quitter la partie</button>
 <div id="specBar" hidden><button id="specPrev" aria-label="Joueur précédent">◀</button><span>Tu regardes <b id="specName"></b></span><button id="specNext" aria-label="Joueur suivant">▶</button></div>
 <div id="msg"><b></b><span></span></div>
+<div id="count" hidden></div>
+<div id="bombArrow" hidden><svg viewBox="0 0 40 40"><path d="M20 3 L35 34 L20 26 L5 34 Z" fill="#0b0b0b" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg></div>
+<button id="gearBtn" aria-label="Réglages">⚙</button>
+<div id="settings" class="ov" hidden>
+  <div class="card">
+    <div class="kick"><span id="setKick">Réglages</span><span id="setNote"></span></div>
+    <h2>Pause</h2>
+    <div class="opt"><span>Effets sonores</span><input type="range" id="sVol" min="0" max="100" step="1"></div>
+    <div class="opt"><span>Ambiance</span><input type="range" id="sAmb" min="0" max="100" step="1"></div>
+    <div class="opt"><span>Musique <em class="skn">tes sons, bientôt</em></span><input type="range" id="sMus" min="0" max="100" step="1"></div>
+    <div class="opt"><span>Son</span><div class="seg" id="sMute"><button data-v="0">Activé</button><button data-v="1">Coupé</button></div></div>
+    <div class="opt"><span>Qualité <em class="skn">basse = téléphone qui rame</em></span><div class="seg" id="sQual"><button data-v="haute">Haute</button><button data-v="basse">Basse</button></div></div>
+    <div class="opt"><span>Vibrations</span><div class="seg" id="sVib"><button data-v="1">Oui</button><button data-v="0">Non</button></div></div>
+    <button class="btn ghost" id="sFull">Plein écran</button>
+    <button class="btn" id="sBack">Reprendre</button>
+    <button class="btn ghost" id="sQuit" hidden>Quitter la partie</button>
+    <div class="ctl">Échap pour ouvrir ou fermer.</div>
+  </div>
+</div>
 
 <button id="throw" hidden disabled>Lancer<small>Espace</small></button>
 <button id="skillBtn" hidden>Skill</button>
@@ -223,6 +276,8 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="kick"><span>Fin de partie</span><span id="endR"></span></div>
     <h2 id="endT"></h2>
     <ol id="rank"></ol>
+    <div id="endStats"></div>
+    <div id="endSeries"></div>
     <button class="btn" id="again">Rejouer</button>
     <button class="btn ghost" id="tomenu">Changer de niveau</button>
     <p class="ctl" id="endWait" hidden>L’hôte peut relancer une partie, reste sur cette page.</p>
@@ -230,6 +285,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
 <script>
 (() => {
@@ -253,7 +309,7 @@ const isTouch = matchMedia('(pointer:coarse)').matches;
 /* ---------- rendu ---------- */
 const canvas = $('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-const PIX = isTouch ? .62 : .5; // rendu en basse définition, agrandi en gros pixels
+let PIX = isTouch ? .62 : .5; // rendu en basse définition, agrandi en gros pixels
 renderer.setPixelRatio(PIX);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -909,6 +965,7 @@ function buildWorld(th, gridStr, size, extra) {
     world.add(bl);
   }
   scene.add(world);
+  startAmbience(th);
 }
 
 function bfs(si, sj) {
@@ -1021,7 +1078,7 @@ function makeEnt(idx, nm = NAMES[idx], isMe = idx === 0) {
     idx, name: nm, col: COLS[idx], isYou: isMe, g, inner, lab, legs, arms, walk: 0, suit, suitD,
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), dir: new THREE.Vector3(),
     alive: true, think: 0, throwT: -1, grace: 0, noBack: null, noBackT: 0, wp: null, wpT: 0, wandering: false,
-    speed: isMe ? 7 : rnd(6.0, 6.5), nerve: rnd(.2, .6), yaw: 0,
+    speed: isMe ? 7 : rnd(6.0, 6.5), nerve: rnd(.2, .6), yaw: 0, st: { hold: 0, throws: 0, passes: 0, walls: 0 },
   };
 }
 
@@ -1116,7 +1173,7 @@ function placeWall(e, ci, cj) {
   const m = new THREE.Mesh(tiledBox(CELL, WALL_H + 1, CELL), curWallMat); m.castShadow = m.receiveShadow = true;
   m.position.set(x, (WALL_H - 1) / 2, z); m.scale.y = .05;
   scene.add(m); tempWalls.push({ k, m, life: 10 });
-  e.wallCharge = 0; threatT = 0;
+  e.wallCharge = 0; threatT = 0; if (e.st) e.st.walls++;
   tone(70, .35, 'sine', .3, 40); tone(180, .12, 'square', .05, 90); shake = Math.max(shake, .25);
   return true;
 }
@@ -1299,7 +1356,7 @@ function gasTick(dt) {
     e.gasT = (e.gasT || 0) - dt;
     if (e.gasT > 0) continue;
     e.gasT = GAS_HIT; e.hp = (e.hp == null ? 3 : e.hp) - 1;
-    if (e.isYou) { tone(160, .3, 'sawtooth', .07, 80); $('#gasFx').style.opacity = 1; flash = Math.max(flash, .1); }
+    if (e.isYou) { tone(160, .3, 'sawtooth', .07, 80); $('#gasFx').style.opacity = 1; flash = Math.max(flash, .1); vib(90); }
     if (e.hp <= 0) gasDeath(e);
   }
 }
@@ -1487,18 +1544,96 @@ function burst(p) {
   scene.add(sp); splats.push(sp);
 }
 
-/* ---------- son ---------- */
-let ac = null;
+/* ---------- son : un bus par famille (effets, ambiance, musique) ---------- */
+const SET = { vol: 80, amb: 60, mus: 70, mute: false, quality: isTouch ? 'basse' : 'haute', vib: true };
+try { Object.assign(SET, JSON.parse(localStorage.getItem('pz-set') || '{}')); } catch (e) {}
+const saveSet = () => { try { localStorage.setItem('pz-set', JSON.stringify(SET)); } catch (e) {} };
+let ac = null, master = null, sfxBus = null, ambBus = null, musBus = null;
 function audio() {
-  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; } }
+  if (!ac) {
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; }
+    if (ac) {
+      master = ac.createGain(); master.connect(ac.destination);
+      sfxBus = ac.createGain(); ambBus = ac.createGain(); musBus = ac.createGain();
+      sfxBus.connect(master); ambBus.connect(master); musBus.connect(master);
+      applyVolumes(); startAmbience(theme);
+    }
+  }
   if (ac && ac.state === 'suspended') ac.resume();
 }
+function applyVolumes() {
+  if (!ac) return;
+  master.gain.value = SET.mute ? 0 : 1;
+  sfxBus.gain.value = SET.vol / 100; ambBus.gain.value = SET.amb / 100 * .9; musBus.gain.value = SET.mus / 100;
+}
+const vib = ms => { if (SET.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} };
 function tone(f, d, type = 'square', v = .04, f2) {
   if (!ac) return;
   const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
   g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
-  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d + .02);
+  o.connect(g).connect(sfxBus); o.start(t); o.stop(t + d + .02);
+}
+function applyQuality() {
+  const low = SET.quality === 'basse';
+  PIX = low ? (isTouch ? .45 : .4) : (isTouch ? .62 : .5);
+  sun.castShadow = !low; $('#grain').style.display = low ? 'none' : '';
+  resize();
+}
+let paused = false, countT = 0;
+function syncSettingsUI() {
+  $('#sVol').value = SET.vol; $('#sAmb').value = SET.amb; $('#sMus').value = SET.mus;
+  for (const [id, val] of [['#sMute', SET.mute ? '1' : '0'], ['#sQual', SET.quality], ['#sVib', SET.vib ? '1' : '0']]) for (const b of $(id).children) b.setAttribute('aria-pressed', String(b.dataset.v === val));
+  const inGame = state === 'play' || state === 'boom';
+  $('#sQuit').hidden = !inGame;
+  $('#setNote').textContent = inGame ? (NET.role === 'solo' ? 'partie en pause' : 'en ligne : la partie continue') : '';
+}
+function openSettings(on) {
+  $('#settings').hidden = !on;
+  paused = on && NET.role === 'solo' && (state === 'play' || state === 'boom');
+  if (on) syncSettingsUI();
+}
+let ambNodes = [], ambTimer = null;
+function noiseBuf(sec) {
+  const len = ac.sampleRate * sec | 0, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+function loopNoise(type, freq, q, gain) {
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = noiseBuf(3); s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = gain;
+  s.connect(f).connect(g).connect(ambBus); s.start(); ambNodes.push(s, g); return { s, f, g };
+}
+function hum(freq, gain, type = 'sawtooth') {
+  const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+  o.type = type; o.frequency.value = freq; f.type = 'lowpass'; f.frequency.value = 400; g.gain.value = gain;
+  o.connect(f).connect(g).connect(ambBus); o.start(); ambNodes.push(o, g); return o;
+}
+function ping(f, d, v, type = 'sine', f2) {
+  if (!ac) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g).connect(ambBus); o.start(t); o.stop(t + d + .05);
+}
+function stopAmbience() { for (const n of ambNodes) { try { n.stop ? n.stop() : n.disconnect(); } catch (e) {} } ambNodes = []; clearInterval(ambTimer); ambTimer = null; }
+function startAmbience(th) {
+  if (!ac || !th) return;
+  stopAmbience();
+  const key = Object.keys(THEMES).find(k => THEMES[k] === th);
+  if (key === 'hall' || key === 'office') { hum(60, .018); hum(120, .008, 'square'); loopNoise('bandpass', 3800, 6, .006); }
+  if (key === 'pool') { loopNoise('lowpass', 500, .7, .05); hum(55, .006, 'sine'); }
+  if (key === 'pipes') { loopNoise('lowpass', 140, .9, .08); hum(42, .02, 'sine'); }
+  if (key === 'forest') { const w = loopNoise('bandpass', 600, .6, .05); ambNodes.push({ stop() {} }); w.f.frequency.setValueAtTime(400, ac.currentTime); }
+  if (key === 'circus') { hum(58, .01); loopNoise('lowpass', 900, .5, .012); }
+  const scale = [0, 3, 5, 7, 10, 12, 15];
+  ambTimer = setInterval(() => {
+    if (!ac || document.hidden) return;
+    const r = Math.random();
+    if (key === 'pool' && r < .45) ping(rnd(900, 1600), .25, .05, 'sine', rnd(500, 700));              // gouttes
+    if (key === 'pipes') { if (r < .35) ping(rnd(700, 1200), .2, .05, 'sine', 400); else if (r < .45) ping(rnd(160, 260), .6, .05, 'triangle', 120); } // gouttes, tuyau
+    if (key === 'forest') { if (r < .6) for (let k = 0; k < 3; k++) setTimeout(() => ping(rnd(4200, 4800), .04, .015, 'square'), k * 70); if (r > .93) ping(rnd(300, 420), 1.2, .03, 'sine', rnd(200, 260)); } // grillons, chouette
+    if ((key === 'hall' || key === 'office') && r < .08) { ping(80, .3, .03, 'square', 60); }           // néon qui grésille
+    if (key === 'circus' && r < .7) { const n = scale[Math.random() * scale.length | 0]; ping(440 * Math.pow(2, (n - 12) / 12) * (1 + rnd(-.012, .012)), 1.4, .035, 'triangle'); } // boîte à musique faussée
+  }, 900);
 }
 function boomSnd() {
   if (!ac) return;
@@ -1506,7 +1641,7 @@ function boomSnd() {
   for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
   const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
   s.buffer = b; f.type = 'lowpass'; f.frequency.value = 800; g.gain.value = .6;
-  s.connect(f).connect(g).connect(ac.destination); s.start();
+  s.connect(f).connect(g).connect(sfxBus); s.start();
   tone(90, .6, 'sine', .35, 30);
 }
 
@@ -1515,7 +1650,7 @@ let state = 'menu', holder = null, timer = null, roundTime = 0, round = 0, elim 
 let beepAcc = 0, beepPulse = 0, flickT = 0;
 let threatMap = null, threatT = 0, lastSec = -1, lastQ = -1, shake = 0, flash = 0, timeScale = 1, msgT = 0;
 /* ---------- réseau local : salons ---------- */
-const NET = { mode: null, ch: null, up: null, ups: {}, hostSeen: false, role: 'solo', room: null, id: (() => { const r = Math.random().toString(36).slice(2, 12); try { let v = sessionStorage.getItem('pz-id'); if (!v) { v = r; sessionStorage.setItem('pz-id', v); } return v; } catch (e) { return r; } })(), es: null, guests: [], slots: [], slot: 0, name: '', lobby: null, status: '', inGame: false };
+const NET = { mode: null, ch: null, up: null, ups: {}, hostSeen: false, role: 'solo', room: null, id: (() => { const r = Math.random().toString(36).slice(2, 12); try { let v = sessionStorage.getItem('pz-id'); if (!v) { v = r; sessionStorage.setItem('pz-id', v); } return v; } catch (e) { return r; } })(), es: null, guests: [], slots: [], slot: 0, name: '', lobby: null, lobbyIds: [], lobbyReady: [], status: '', inGame: false, ready: false, banned: new Set(), lastSave: null };
 try { NET.name = localStorage.getItem('pz-name') || ''; } catch (e) {}
 let SALON = (new URLSearchParams(location.search).get('salon') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
 // relais en ligne : canaux temps réel Supabase (aucune donnée stockée, juste des messages entre joueurs)
@@ -1587,7 +1722,7 @@ function newGame() {
   camTarget.copy(you().pos);
   state = 'play';
   startRound();
-  if (NET.role === 'host') hostSendMaps();
+  if (NET.role === 'host') { hostSendMaps(); NET.guests.forEach(g => { g.ready = false; }); }
 }
 // combien de bots on ajoute vraiment : au moins 2 joueurs au total, 6 au maximum
 function botsFor(humans) { return Math.max(humans >= 2 ? 0 : 1, Math.min(botsN, 6 - humans)); }
@@ -1616,8 +1751,9 @@ function startRound() {
   if (!pick) { const c = cells[Math.random() * cells.length | 0]; pick = { x: c2w(c[0]), z: c2w(c[1]) }; }
   virus.pos.set(pick.x, .55, pick.z); virus.mode = 'crawl'; virus.crawlT = 0; virus.exclude = null; virus.excludeT = 0; virus.wake = 1.3; virus.g.visible = true; virus.map = null; virus.mapT = 0;
   $('#round').textContent = `${theme.lvl} · ${theme.name} · Manche ${round} · ${ps.length} en vie`;
-  msg(`Manche ${round}`, 'Le virus se réveille. Éloigne-toi.', 2);
+  msg(`Manche ${round}`, 'Prépare-toi…', 1.4);
   tone(220, .5, 'sawtooth', .05, 110);
+  countT = 3; virus.g.visible = false; tone(660, .12, 'square', .05);
   roster();
 }
 
@@ -1657,17 +1793,18 @@ function doThrow(e, power = 1) {
     while (L > 1 && isWall(w2c(e.pos.x + dx / dl * L), w2c(e.pos.z + dz / dl * L))) L -= lob ? .3 : .5;
     v.land = new THREE.Vector3(e.pos.x + dx / dl * L, .55, e.pos.z + dz / dl * L);
   }
-  holder = null; e.throwT = -1;
+  holder = null; e.throwT = -1; if (e.st) e.st.throws++;
   tone(320, .22, 'triangle', .07, 1100);
   roster();
   return true;
 }
 function attach(e, from) {
+  if (from && from !== e && from.st) from.st.passes++;
   holder = e; virus.mode = 'held';
   e.grace = gasFinal() ? 0 : .7; e.noBack = from || null; e.noBackT = from ? 1.4 : 0; e.throwT = -1;
   if (timer === null) { roundTime = rnd(15, 26); timer = roundTime; beepAcc = 0; }
   tone(140, .12, 'sawtooth', .08, 70);
-  if (e.isYou) msg('Il est sur toi', 'Lance-le quand tu veux', 1.2);
+  if (e.isYou) { msg('Il est sur toi', 'Lance-le quand tu veux', 1.2); vib([60, 40, 60]); }
   shake = Math.max(shake, .15);
   roster();
   if (pendingBoom) contaminate(e);
@@ -1684,13 +1821,42 @@ function contaminate(e) {
   boomSnd(); shake = .7; flash = .55;
   state = 'boom'; boomT = 2.8;
   const left = alive().length;
-  if (e.isYou) { msg('Contaminé', 'Tu es hors-jeu. Regarde la fin.', 2.6); $('#throw').hidden = true; $('#hint').hidden = true; $('#fast').hidden = left <= 1; }
+  if (e.isYou) { msg('Contaminé', 'Tu es hors-jeu. Regarde la fin.', 2.6); $('#throw').hidden = true; $('#hint').hidden = true; $('#fast').hidden = left <= 1; vib(300); }
   else msg(`${e.name} contaminé`, left > 1 ? `${left} encore debout` : '', 2.4);
   roster();
 }
 function endGame() {
   state = 'over'; clearSave();
-  showEnd([...alive(), ...elim.slice().reverse()]);
+  const order = [...alive(), ...elim.slice().reverse()];
+  showEnd(order);
+  const d = endData(order); renderEndExtras(d);
+  if (NET.role === 'host') netPost({ t: 'end', d });
+}
+// série : points cumulés sur plusieurs parties (1er 10, 2e 7, 3e 5, 4e 3, 5e 2, 6e 1)
+const PLACE_PTS = [10, 7, 5, 3, 2, 1];
+let SERIES = { games: 0, pts: {} };
+try { SERIES = JSON.parse(sessionStorage.getItem('pz-series') || 'null') || SERIES; } catch (e) {}
+function endData(order) {
+  const rows = order.map((e, i) => ({ name: e.name, col: e.col, place: i + 1, pts: PLACE_PTS[i] || 0, hold: Math.round((e.st && e.st.hold) || 0), throws: (e.st && e.st.throws) || 0, passes: (e.st && e.st.passes) || 0, walls: (e.st && e.st.walls) || 0 }));
+  SERIES.games++; for (const r of rows) SERIES.pts[r.name] = (SERIES.pts[r.name] || 0) + r.pts;
+  try { sessionStorage.setItem('pz-series', JSON.stringify(SERIES)); } catch (e) {}
+  return { rows, games: SERIES.games, series: Object.entries(SERIES.pts).map(([name, pts]) => ({ name, pts })).sort((a, b) => b.pts - a.pts) };
+}
+function renderEndExtras(d) {
+  if (!d) return;
+  const meName = you() ? you().name : '';
+  const best = (k) => { const m = Math.max(...d.rows.map(r => r[k])); return m > 0 ? d.rows.filter(r => r[k] === m).map(r => r.name) : []; };
+  const badges = [['Patate chaude', 'le plus de lancers', best('throws')], ['Aimant à virus', 'l’a porté le plus longtemps', best('hold')], ['Passeur', 'le plus de passes réussies', best('passes')], ['Bâtisseur', 'le plus de murs posés', best('walls')]]
+    .filter(b => b[2].length).map(b => `<span title="${b[1]}"><b>${b[0]}</b> · ${b[2].map(esc).join(', ')}</span>`).join('');
+  $('#endStats').innerHTML = `<div class="lvhead">Stats de la partie</div>
+    <table class="est"><thead><tr><th>Joueur</th><th>Porté</th><th>Lancers</th><th>Passes</th><th>Murs</th><th>Pts</th></tr></thead><tbody>
+    ${d.rows.map(r => `<tr class="${r.name === meName ? 'me' : ''}"><td><i style="--c:${r.col}"></i>${esc(r.name)}</td><td>${r.hold} s</td><td>${r.throws}</td><td>${r.passes}</td><td>${r.walls}</td><td>+${r.pts}</td></tr>`).join('')}</tbody></table>
+    <div class="badges">${badges}</div>`;
+  const top = Math.max(1, ...d.series.map(x => x.pts));
+  $('#endSeries').innerHTML = `<div class="lvhead">Série · ${d.games} partie${d.games > 1 ? 's' : ''}</div>
+    <div class="ser">${d.series.map((x, i) => `<div class="row"><span>${i + 1}</span><span>${esc(x.name)}</span><em>${x.pts} pts</em><div class="bar"><i style="width:${Math.round(x.pts / top * 100)}%"></i></div></div>`).join('')}</div>
+    ${NET.role !== 'guest' ? '<button class="btn ghost" id="seriesReset" type="button">Remettre la série à zéro</button>' : ''}`;
+  const rb = $('#seriesReset'); if (rb) rb.onclick = () => { SERIES = { games: 0, pts: {} }; try { sessionStorage.removeItem('pz-series'); } catch (e) {} $('#endSeries').innerHTML = '<div class="ctl">Série remise à zéro.</div>'; };
 }
 function showEnd(order) {
   const me = order.indexOf(you());
@@ -1725,6 +1891,15 @@ addEventListener('keyup', e => { if (e.code === 'KeyF') wallRelease(); });
 addEventListener('keydown', e => { if (e.code === 'KeyR' && !e.repeat && state === 'play') { audio(); trySkill(); } });
 $('#skillBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audio(); trySkill(); });
 addEventListener('blur', () => keys.clear());
+$('#gearBtn').addEventListener('click', e => { e.stopPropagation(); audio(); openSettings($('#settings').hidden); });
+addEventListener('keydown', e => { if (e.code === 'Escape') { e.preventDefault(); openSettings($('#settings').hidden); } });
+$('#sBack').addEventListener('click', () => openSettings(false));
+$('#sQuit').addEventListener('click', () => { openSettings(false); quitGame(); });
+$('#sFull').addEventListener('click', () => { const d = document; if (d.fullscreenElement) d.exitFullscreen && d.exitFullscreen(); else (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen || (() => {})).call(d.documentElement); });
+for (const [id, key] of [['#sVol', 'vol'], ['#sAmb', 'amb'], ['#sMus', 'mus']]) $(id).addEventListener('input', e => { SET[key] = +e.target.value; applyVolumes(); saveSet(); });
+for (const [id, fn] of [['#sMute', v => { SET.mute = v === '1'; applyVolumes(); }], ['#sQual', v => { SET.quality = v; applyQuality(); }], ['#sVib', v => { SET.vib = v === '1'; vib(30); }]])
+  $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; audio(); fn(b.dataset.v); saveSet(); syncSettingsUI(); });
+applyQuality();
 
 const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const jb = $('#joyb'), jk = $('#joyk');
@@ -1898,6 +2073,12 @@ let T = 0;
 
 function update(dt) {
   T += dt;
+  if (countT > 0 && state === 'play') { // 3, 2, 1… tout le monde part en même temps
+    const before = Math.ceil(countT); countT -= dt; const after = Math.ceil(Math.max(0, countT));
+    if (after !== before) { if (after > 0) tone(660, .12, 'square', .05); else { tone(1320, .3, 'square', .06); vib(40); if (virus.mode !== 'gone') virus.g.visible = true; } }
+    for (const e of ents) e.vel.set(0, 0, 0);
+    animFx(dt); return;
+  }
   // carte de menace partagée
   threatT -= dt;
   if (threatT <= 0) { threatT = .2; const tp = threatPos(); threatMap = tp ? bfs(w2c(tp.x), w2c(tp.z)) : null; }
@@ -1943,6 +2124,7 @@ function update(dt) {
   // virus
   updateVirus(dt);
   updateItems(dt);
+  if (holder && holder.st && state === 'play' && timer !== null) holder.st.hold += dt;
   if (state === 'play' || state === 'boom') { wallMoveTick(dt); animMoves(dt, false); gasTick(dt); skillsTick(dt); }
   updatePrints(dt);
   aimUpdate(dt);
@@ -2117,6 +2299,23 @@ function visuals(dt) {
   const focus = me && me.alive ? me.pos : (spec ? spec.pos : (virus.mode !== 'gone' ? virus.g.position : camTarget));
   $('#specBar').hidden = !spec; if (spec) $('#specName').textContent = spec.name;
   $('#quitBtn').hidden = !(state === 'play' || state === 'boom') || !ents.length;
+  // 3-2-1
+  const ctv = NET.role === 'guest' ? (snapG && snapG.ct) || 0 : (countT > 0 && state === 'play' ? Math.ceil(countT) : 0);
+  const cel = $('#count'); cel.hidden = !ctv && !(cel.dataset.go > 0);
+  if (ctv) { cel.textContent = ctv; cel.classList.remove('go'); cel.dataset.go = .6; }
+  else if (cel.dataset.go > 0) { cel.textContent = 'GO'; cel.classList.add('go'); cel.dataset.go = +cel.dataset.go - dt; }
+  // flèche au bord de l'écran vers la bombe quand elle est hors champ
+  const ar = $('#bombArrow'), vw = innerWidth, vh = innerHeight; let showAr = false;
+  if ((state === 'play') && virus.mode !== 'gone' && virus.g.visible && holder !== me) {
+    proj.copy(virus.g.position).project(camera);
+    const sx = (proj.x * .5 + .5) * vw, sy = (-proj.y * .5 + .5) * vh, behind = proj.z > 1, m = 36;
+    if (behind || sx < 0 || sx > vw || sy < 0 || sy > vh) {
+      showAr = true; let dx = sx - vw / 2, dy = sy - vh / 2; if (behind) { dx = -dx; dy = -dy; }
+      const k = Math.min((vw / 2 - m) / Math.abs(dx || 1e-6), (vh / 2 - m) / Math.abs(dy || 1e-6));
+      ar.style.transform = `translate(${vw / 2 + dx * k}px,${vh / 2 + dy * k}px) rotate(${Math.atan2(dy, dx) + Math.PI / 2}rad)`;
+    }
+  }
+  ar.hidden = !showAr;
   camTarget.x += (focus.x - camTarget.x) * (1 - Math.exp(-dt * 6));
   camTarget.z += (focus.z - camTarget.z) * (1 - Math.exp(-dt * 6));
   const portrait = innerWidth < innerHeight;
@@ -2168,7 +2367,7 @@ function visuals(dt) {
 
 function step(raw) {
   if (NET.role === 'guest' && NET.inGame) guestUpdate(raw);
-  else { const steps = timeScale; for (let s = 0; s < steps; s++) if (state !== 'menu' && state !== 'over') update(raw); else { T += raw / steps; } }
+  else if (!paused) { const steps = timeScale; for (let s = 0; s < steps; s++) if (state !== 'menu' && state !== 'over') update(raw); else { T += raw / steps; } }
   visuals(raw);
   if (NET.role === 'host') hostTick(raw); else if (NET.role === 'solo' && (saveT -= raw) <= 0) { saveT = 1; saveGame(); }
   if (NET.role === 'guest') guestTick(raw);
@@ -2201,7 +2400,7 @@ function onlineHost() {
   NET.ch.on('presence', { event: 'sync' }, () => {
     const st = NET.ch.presenceState(), present = [];
     for (const k in st) for (const pr of st[k]) if (pr.role === 'guest' && pr.id) present.push(pr);
-    for (const pr of present) if (!NET.guests.find(g => g.id === pr.id)) { listenUp(pr.id); hostMsg({ t: 'join', id: pr.id, name: cleanName(pr.name), skin: Math.max(0, Math.min(SKINS.length - 1, +pr.skin || 0)) }); }
+    for (const pr of present) if (!NET.guests.find(g => g.id === pr.id) && !NET.banned.has(pr.id)) { listenUp(pr.id); hostMsg({ t: 'join', id: pr.id, name: cleanName(pr.name), skin: Math.max(0, Math.min(SKINS.length - 1, +pr.skin || 0)) }); }
     for (const g of NET.guests.slice()) if (!present.find(pr => pr.id === g.id)) {
       hostMsg({ t: 'leave', id: g.id });
       if (NET.ups[g.id]) { c.removeChannel(NET.ups[g.id]); delete NET.ups[g.id]; }
@@ -2218,10 +2417,11 @@ function listenUp(id) {
   ch.on('broadcast', { event: 'up' }, ({ payload }) => { if (payload && payload.m && typeof payload.m === 'object') hostMsg(Object.assign({}, payload.m, { from: id })); });
   ch.subscribe(); NET.ups[id] = ch;
 }
-function hostLobby() { netPost({ t: 'lobby', names: [NET.name || 'Hôte', ...NET.guests.map(g => g.name)], st: state }); }
+function hostLobby() { netPost({ t: 'lobby', names: [NET.name || 'Hôte', ...NET.guests.map(g => g.name)], ids: [NET.id, ...NET.guests.map(g => g.id)], ready: [true, ...NET.guests.map(g => !!g.ready)], st: state }); }
 function hostMsg(m) {
   if (m.t === 'join' || m.t === 'hello') {
     const id = m.t === 'join' ? m.id : m.from;
+    if (NET.banned.has(id)) { netPost({ t: 'kick' }, id); return; }
     const g = NET.guests.find(x => x.id === id);
     if (m.t === 'join') { if (g) Object.assign(g, { name: m.name, skin: m.skin }); else NET.guests.push({ id, name: m.name, skin: m.skin }); }
     // en pleine partie : il reprend son perso là où il l'avait laissé
@@ -2236,6 +2436,7 @@ function hostMsg(m) {
     const e = ents.find(x => x.netId === m.id); if (e) { e.formerNetId = m.id; e.netId = null; e.remote = false; e.think = 0; }
     renderNet(); hostLobby(); return;
   }
+  if (m.t === 'ready') { const g = NET.guests.find(x => x.id === m.from); if (g) { g.ready = !!m.v; renderNet(); hostLobby(); } return; }
   const e = ents.find(x => x.netId && x.netId === m.from); if (!e || !e.alive) return;
   if (m.t === 'pos') e.netPos = m;
   else if (m.t === 'skill') useSkill(e);
@@ -2253,8 +2454,9 @@ function mapMsg() { return { t: 'map', th: themeKey(), grid: Array.from(grid).ma
 function mapExtra() { return mapExtraBuild(); }
 function hostSendMapTo(id) { const i = ents.findIndex(e => e.netId === id); if (i < 0) return; netPost(Object.assign(mapMsg(), { you: i }), id); hostSnap(); }
 let saveT = 0;
-function saveGame() {
-  if (NET.role === 'guest' || !ents.length || (state !== 'play' && state !== 'boom')) return;
+function saveGame() { const sv = buildSave(); if (sv) try { sessionStorage.setItem('pz-save', JSON.stringify(sv)); } catch (e) {} }
+function buildSave() {
+  if (NET.role === 'guest' || !ents.length || (state !== 'play' && state !== 'boom')) return null;
   const v = virus;
   const sv = {
     t: Date.now(), th: themeKey(), grid: Array.from(grid).map(x => x === 4 ? 0 : x).join(''), items: itemsOn, extra: mapExtra(),
@@ -2265,7 +2467,7 @@ function saveGame() {
     it: items.map(i => [r2(i.p.x), r2(i.p.z)]), tw: tempWalls.map(w => [w.k, r2(w.life)]),
     net: { role: NET.role, room: NET.room }, more: saveExtra(),
   };
-  try { sessionStorage.setItem('pz-save', JSON.stringify(sv)); } catch (e) {}
+  return sv;
 }
 function saveExtra() { return { gm: GM, sk: ents.map(e => e.skill || null), lf: ents.map(e => e.lifeLeft || 0) }; }
 function clearSave() { try { sessionStorage.removeItem('pz-save'); } catch (e) {} }
@@ -2316,7 +2518,7 @@ function hostSendMaps() {
 function hostSnap() {
   if (!ents.length) return;
   netPost({
-    t: 's', st: state, r: round, rn: $('#round').textContent, h: holder ? ents.indexOf(holder) : -1,
+    t: 's', st: state, ct: countT > 0 ? Math.ceil(countT) : 0, r: round, rn: $('#round').textContent, h: holder ? ents.indexOf(holder) : -1,
     e: ents.map(e => [r2(e.pos.x), r2(e.pos.z), r2(e.yaw), e.alive ? 1 : 0, r2(e.vel.x), r2(e.vel.z), e.wallCharge ? 1 : 0, e.hp == null ? 3 : e.hp, (e.invisT > 0 ? 1 : 0) | (e.ghostT > 0 ? 2 : 0) | (e.sprintT > 0 ? 4 : 0), e.skUses || 0, Math.ceil(e.skCd || 0)]),
     el: elim.map(e => ents.indexOf(e)),
     v: [virus.mode, r2(virus.g.position.x), r2(virus.g.position.y), r2(virus.g.position.z), r2(virus.g.rotation.y), r2(virus.g.scale.x)],
@@ -2328,8 +2530,10 @@ function hostSnap() {
   });
 }
 let netT = 0;
+let svT = 0;
 function hostTick(dt) {
-  if ((saveT -= dt) <= 0) { saveT = 1; saveGame(); } if (!NET.room || state === 'menu' || !ents.length) return; netT -= dt; if (netT <= 0) { netT = NET.mode === 'online' ? .1 : .05; hostSnap(); } }
+  if ((saveT -= dt) <= 0) { saveT = 1; saveGame(); }
+  if (NET.guests.length && (svT -= dt) <= 0) { svT = 3; const sv = buildSave(); if (sv) netPost({ t: 'sv', d: sv }); } if (!NET.room || state === 'menu' || !ents.length) return; netT -= dt; if (netT <= 0) { netT = NET.mode === 'online' ? .1 : .05; hostSnap(); } }
 
 /* ---------- réseau : invité ---------- */
 let snapG = null, elimSeen = new Set(), lastHolder = -2, lastRound = 0, lastVMode = '', lastSt = '', lastCharge = 0, guestSendT = 0;
@@ -2365,14 +2569,21 @@ function guestMsg(m) {
   if ((m.t === 'map' || m.t === 's') && NET.hostLost) { clearTimeout(NET.hostLost); NET.hostLost = null; }
   if (m.t === 'map') return guestStart(m);
   if (m.t === 's') { if (NET.inGame) guestSnap(m); return; }
-  if (m.t === 'lobby') { NET.lobby = m.names; NET.status = NET.inGame ? '' : (m.st && m.st !== 'menu' ? 'Une partie est en cours : tu entres à la prochaine.' : 'En attente que l’hôte lance la partie…'); renderNet(); return; }
+  if (m.t === 'sv') { NET.lastSave = m.d; return; }
+  if (m.t === 'end') { NET.endData = m.d; if (!$('#end').hidden) renderEndExtras(m.d); return; }
+  if (m.t === 'kick') { leaveSalon('Tu as été exclu du salon.'); return; }
+  if (m.t === 'lobby') { NET.lobbyIds = m.ids || []; NET.lobbyReady = m.ready || []; NET.lobby = m.names; NET.status = NET.inGame ? '' : (m.st && m.st !== 'menu' ? 'Une partie est en cours : tu entres à la prochaine.' : 'En attente que l’hôte lance la partie…'); renderNet(); return; }
   if (m.t === 'nohost') { NET.status = 'L’hôte n’est pas (encore) dans le salon.'; renderNet(); return; }
   if (m.t === 'full') { NET.status = 'Salon plein (6 joueurs maximum).'; if (NET.es) NET.es.close(); renderNet(); return; }
   if (m.t === 'tolobby') { if (NET.inGame) guestToMenu('L’hôte est revenu au salon.'); return; }
   if (m.t === 'hostgone') {
-    if (NET.inGame) {
-      if (!NET.hostLost) { msg('Connexion perdue', 'L’hôte se reconnecte…', 4); NET.hostLost = setTimeout(() => { NET.hostLost = null; guestToMenu('L’hôte a quitté le salon.'); }, 25000); }
-    } else guestToMenu('L’hôte a quitté le salon.');
+    if (NET.hostLost) return;
+    if (NET.inGame) msg('Connexion perdue', 'L’hôte se reconnecte…', 3); else { NET.status = 'L’hôte s’est déconnecté… on attend un peu.'; renderNet(); }
+    NET.hostLost = setTimeout(() => {
+      NET.hostLost = null;
+      if (migrateHost()) return;
+      NET.hostLost = setTimeout(() => { NET.hostLost = null; guestToMenu('L’hôte a quitté le salon.'); }, 12000);
+    }, 7000);
     return;
   }
 }
@@ -2402,6 +2613,52 @@ function quitGame() {
   if (NET.role === 'host') netPost({ t: 'tolobby' });
   $('#tomenu').click();
 }
+// passation : l'invité qui a le plus petit identifiant devient l'hôte et reprend la partie là où elle en était
+function migrateHost() {
+  let cands = [];
+  if (NET.mode === 'online' && NET.ch) { const st = NET.ch.presenceState(); for (const k in st) for (const pr of st[k]) { if (pr.role === 'host') return false; if (pr.role === 'guest' && pr.id) cands.push(pr.id); } }
+  else cands = (NET.lobbyIds || []).slice(1);
+  if (!cands.includes(NET.id)) cands.push(NET.id);
+  cands.sort();
+  if (cands[0] !== NET.id) return false;
+  const sv = NET.inGame && NET.lastSave ? JSON.parse(JSON.stringify(NET.lastSave)) : null;
+  if (NET.mode === 'online') { if (NET.ch) sb().removeChannel(NET.ch); if (NET.up) sb().removeChannel(NET.up); NET.ch = NET.up = null; }
+  else if (NET.es) { NET.es.close(); NET.es = null; }
+  NET.role = 'host'; NET.guests = []; NET.inGame = false; NET.status = '';
+  try { sessionStorage.setItem('pz-host', NET.room); sessionStorage.removeItem('pz-guest'); } catch (e) {}
+  showHostMenu();
+  if (sv) {
+    const my = sv.slots.findIndex(sl => sl.netId === NET.id);
+    if (my >= 0) sv.slots[my].netId = null;
+    sv.slot = my < 0 ? 0 : my; sv.net = { role: 'host', room: NET.room };
+    reopenHost(); restoreGame(sv);
+    msg('Tu es le nouvel hôte', 'L’ancien hôte est parti, la partie continue', 2.4);
+  } else {
+    reopenHost(); guestToMenu('Tu es le nouvel hôte du salon.');
+  }
+  return true;
+}
+function showHostMenu() {
+  SALON = '';
+  ['#lvHead', '#lvls', '#optItems', '#optBots', '#optModes', '#play'].forEach(sx => { const el = $(sx); if (el) el.hidden = false; });
+  try { history.replaceState(null, '', location.pathname + (/[?&]test\b/.test(location.search) ? '?test' : '')); } catch (e) {}
+}
+// quitter le salon (exclu, ou fin) : retour au menu solo
+function leaveSalon(why) {
+  if (NET.mode === 'online') { if (NET.ch) sb().removeChannel(NET.ch); if (NET.up) sb().removeChannel(NET.up); NET.ch = NET.up = null; }
+  else if (NET.es) { NET.es.close(); NET.es = null; }
+  clearTimeout(NET.hostLost); NET.hostLost = null;
+  NET.role = 'solo'; NET.room = null; NET.slot = 0; NET.lobby = null; NET.ready = false;
+  try { sessionStorage.removeItem('pz-guest'); } catch (e) {}
+  showHostMenu(); guestToMenu(why);
+}
+function hostKick(id) {
+  netPost({ t: 'kick' }, id); NET.banned.add(id);
+  NET.guests = NET.guests.filter(g => g.id !== id);
+  const e = ents.find(x => x.netId === id); if (e) { e.netId = null; e.remote = false; e.think = 0; }
+  if (NET.ups[id]) { sb().removeChannel(NET.ups[id]); delete NET.ups[id]; }
+  renderNet(); hostLobby();
+}
 function guestToMenu(why) {
   NET.inGame = false; state = 'menu';
   for (const e of ents) { scene.remove(e.g); e.lab.remove(); } ents = [];
@@ -2417,7 +2674,7 @@ function guestStart(m) {
   clearItems(); clearPrints();
   buildWorld(THEMES[m.th] || THEMES.hall, m.grid, null, m.extra);
   itemsOn = !!m.items;
-  NET.slot = m.you; NET.inGame = true; NET.status = '';
+  NET.slot = m.you; NET.inGame = true; NET.status = ''; NET.ready = false; NET.endData = null;
   ents = m.slots.map((sl, i) => { const e = makeEnt(i, sl.name, i === m.you); if (sl.skin != null) applySkin(e, sl.skin); e.inited = false; return e; });
   const ex = m.extra || {}; GM = ex.gm || { walls: false, gas: false, skills: false };
   if (ex.sk) ents.forEach((e, i) => { e.skill = ex.sk[i] || null; });
@@ -2439,7 +2696,7 @@ function guestSnap(m) {
     if (a.length > 7) {
       const prevHp = e.hp; e.hp = a[7]; const f = a[8] | 0;
       e.invisT = f & 1 ? 1 : 0; e.ghostT = f & 2 ? 1 : 0; e.sprintT = f & 4 ? 1 : 0; e.skUses = a[9]; e.skCd = a[10];
-      if (e.isYou && prevHp != null && e.hp < prevHp) { tone(160, .3, 'sawtooth', .07, 80); $('#gasFx').style.opacity = 1; }
+      if (e.isYou && prevHp != null && e.hp < prevHp) { tone(160, .3, 'sawtooth', .07, 80); $('#gasFx').style.opacity = 1; vib(90); }
     }
   });
   elim = m.el.map(i => ents[i]).filter(Boolean);
@@ -2448,12 +2705,13 @@ function guestSnap(m) {
   lastCharge = me ? me.wallCharge : 0;
   holder = m.h >= 0 ? ents[m.h] || null : null;
   if (m.h !== lastHolder) {
-    if (m.h >= 0 && lastHolder !== -2) { tone(140, .12, 'sawtooth', .08, 70); shake = Math.max(shake, .15); if (m.h === NET.slot) msg('Il est sur toi', 'Lance-le quand tu veux', 1.2); }
+    if (m.h >= 0 && lastHolder !== -2) { tone(140, .12, 'sawtooth', .08, 70); shake = Math.max(shake, .15); if (m.h === NET.slot) { msg('Il est sur toi', 'Lance-le quand tu veux', 1.2); vib([60, 40, 60]); } }
     lastHolder = m.h; roster();
   }
   if (m.v[0] === 'fly' && lastVMode !== 'fly') tone(320, .22, 'triangle', .07, 1100);
   lastVMode = m.v[0];
-  if (m.r !== lastRound && m.r > 0) { lastRound = m.r; round = m.r; if (m.st !== 'over') { msg(`Manche ${m.r}`, 'Le virus se réveille. Éloigne-toi.', 2); tone(220, .5, 'sawtooth', .05, 110); } roster(); }
+  if (m.r !== lastRound && m.r > 0) { lastRound = m.r; round = m.r; if (m.st !== 'over') { msg(`Manche ${m.r}`, 'Prépare-toi…', 1.4); tone(220, .5, 'sawtooth', .05, 110); } roster(); }
+  if ((m.ct || 0) !== (NET.lastCt || 0)) { if (m.ct > 0) tone(660, .12, 'square', .05); else if (NET.lastCt > 0) { tone(1320, .3, 'square', .06); vib(40); } NET.lastCt = m.ct || 0; }
   $('#round').textContent = m.rn || '';
   timer = m.l < 0 ? null : m.l; roundTime = 1;
   if (m.st !== lastSt) { lastSt = m.st; if (m.st === 'over') guestEnd(); }
@@ -2477,7 +2735,7 @@ function guestContaminate(e) {
   e.alive = false; e.g.visible = false; e.lab.style.display = 'none';
   burst(e.pos); boomSnd(); shake = .7; flash = .55; virus.g.visible = false;
   const left = snapG ? snapG.e.filter(a => a[3]).length : 0;
-  if (e.isYou) { msg('Contaminé', 'Tu es hors-jeu. Regarde la fin.', 2.6); $('#throw').hidden = true; $('#hint').hidden = true; charging = false; }
+  if (e.isYou) { msg('Contaminé', 'Tu es hors-jeu. Regarde la fin.', 2.6); $('#throw').hidden = true; $('#hint').hidden = true; charging = false; vib(300); }
   else msg(`${e.name} contaminé`, left > 1 ? `${left} encore debout` : '', 2.4);
   roster();
 }
@@ -2485,6 +2743,8 @@ function guestEnd() {
   const order = [...ents.filter(e => e.alive), ...elim.slice().reverse()];
   showEnd(order);
   $('#again').hidden = true; $('#tomenu').hidden = true; $('#endWait').hidden = false;
+  $('#endStats').innerHTML = ''; $('#endSeries').innerHTML = '';
+  if (NET.endData) renderEndExtras(NET.endData);
 }
 function syncTempWalls(list) {
   const keep = new Set(list.map(a => a[0]));
@@ -2510,7 +2770,7 @@ function syncItems(list) {
 function guestUpdate(dt) {
   T += dt;
   const me = you(), m = snapG;
-  if (me && me.alive && me.inited && (state === 'play' || state === 'boom')) {
+  if (me && me.alive && me.inited && (state === 'play' || state === 'boom') && !(m && m.ct > 0)) {
     const inp = inputVec(tmpW), a = Math.min(1, dt * 12);
     const msp = me.speed * (inWater(me.pos) ? WATER_SLOW : 1) * speedMul(me);
     me.vel.x += (inp.x * msp - me.vel.x) * a; me.vel.z += (inp.z * msp - me.vel.z) * a;
@@ -2550,7 +2810,13 @@ function guestTick(dt) {
 }
 
 /* ---------- réseau : menu du salon ---------- */
+function drawQR() {
+  const box = $('#qrBox'); if (!box || box.hidden || box.childElementCount || !window.QRCode) return;
+  try { new QRCode(box, { text: $('#roomLink').textContent, width: 180, height: 180, colorDark: '#0b0b0b', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
+}
 function renderNet() {
+  setTimeout(drawQR, 0);
+  { const pb = $('#play'); if (NET.role === 'host' && NET.guests.length) { const r = NET.guests.filter(g => g.ready).length; pb.textContent = r === NET.guests.length ? 'Jouer · tout le monde est prêt' : `Jouer · ${r}/${NET.guests.length} prêts`; } else pb.textContent = 'Jouer'; }
   renderBots();
   const box = $('#net');
   if (!NET.mode) { box.hidden = true; return; }
@@ -2565,12 +2831,14 @@ function renderNet() {
     b.innerHTML = `<div class="kick"><span>Ton salon</span><span>${NET.guests.length + 1}/6 joueurs</span></div>
       <div class="code">${NET.room}</div>
       <div class="link" id="roomLink">${esc(link)}</div>
-      <button class="btn ghost" id="copyLink">Copier le lien</button>
-      <ul class="plist"><li class="me">${esc(NET.name || 'Toi')} · hôte</li>${NET.guests.map(g => `<li>${esc(g.name)}</li>`).join('')}</ul>
+      <div class="joinrow share"><button class="btn ghost" id="copyLink">Copier</button><button class="btn ghost" id="shareLink">Partager</button><button class="btn ghost" id="qrBtn">${NET.qrOpen ? 'Cacher le QR' : 'QR code'}</button></div>
+      <div id="qrBox" class="qr" ${NET.qrOpen ? '' : 'hidden'}></div>
+      <ul class="plist"><li class="me">${esc(NET.name || 'Toi')} · hôte</li>${NET.guests.map(g => `<li class="${g.ready ? 'rdy' : ''}">${esc(g.name)} ${g.ready ? '✓' : '…'}<button class="kick" data-kick="${esc(g.id)}" aria-label="Exclure ${esc(g.name)}" title="Exclure">×</button></li>`).join('')}</ul>
       <div class="ctl">${NET.mode === 'online' ? 'Envoie ce lien à tes potes, où qu’ils soient. « Jouer » lance la partie pour tout le monde.' : ip ? 'Envoie ce lien à tes amis connectés au même Wi-Fi. « Jouer » lance la partie pour tout le monde.' : 'Aucun réseau détecté : connecte ce PC au Wi-Fi.'}</div>${st}`;
   } else if (NET.role === 'guest') {
     b.innerHTML = `<div class="kick"><span>Salon ${esc(NET.room)}</span><span>${NET.lobby ? NET.lobby.length : '…'}/6</span></div>
-      <ul class="plist">${(NET.lobby || []).map((n, i) => `<li${i ? '' : ' class="me"'}>${esc(n)}${i ? '' : ' · hôte'}</li>`).join('')}</ul>${st}`;
+      <ul class="plist">${(NET.lobby || []).map((n, i) => `<li class="${i ? (NET.lobbyReady[i] ? 'rdy' : '') : 'me'}">${esc(n)}${i ? (NET.lobbyReady[i] ? ' ✓' : ' …') : ' · hôte'}</li>`).join('')}</ul>
+      ${NET.inGame ? '' : `<button class="btn ${NET.ready ? '' : 'ghost'}" id="readyBtn">${NET.ready ? 'Prêt ✓' : 'Je suis prêt'}</button>`}${st}`;
   } else if (SALON) {
     b.innerHTML = `<div class="kick"><span>Invitation</span><span>Salon ${esc(SALON)}</span></div><button class="btn" id="joinRoom">Rejoindre le salon</button>${st}`;
   } else {
@@ -2581,6 +2849,8 @@ function renderNet() {
 $('#netBody').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   audio();
+  if (t.dataset.kick) { hostKick(t.dataset.kick); return; }
+  if (t.id === 'readyBtn') { NET.ready = !NET.ready; netPost({ t: 'ready', v: NET.ready }); renderNet(); return; }
   if (t.id === 'mkRoom') hostCreate();
   else if (t.id === 'joinCode') {
     const c = ($('#codeIn').value || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
@@ -2588,6 +2858,11 @@ $('#netBody').addEventListener('click', e => {
     enterGuestMenu(c); guestJoin(c);
   }
   else if (t.id === 'joinRoom') guestJoin(SALON);
+  else if (t.id === 'shareLink') {
+    const url = $('#roomLink').textContent, data = { title: 'Patient zéro', text: `Rejoins mon salon Patient zéro (code ${NET.room}) :`, url };
+    if (navigator.share) navigator.share(data).catch(() => {}); else (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => { t.textContent = 'Lien copié'; }, () => {});
+  }
+  else if (t.id === 'qrBtn') { NET.qrOpen = !NET.qrOpen; renderNet(); }
   else if (t.id === 'copyLink') {
     const txt = $('#roomLink').textContent;
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { t.textContent = 'Lien copié'; }, () => { t.textContent = 'Sélectionne le lien'; });
@@ -2652,6 +2927,7 @@ if (/[?&]test\b/.test(location.search)) window.__pz = {
   specNext() { specCycle(1); return this.spec(); },
   modes(o) { Object.assign(MODES, o); renderModes(); return MODES; },
   tpCount() { return TP.length; },
+  netx() { return { role: NET.role, room: NET.room, guests: NET.guests.map(g => [g.name, !!g.ready]), lobby: NET.lobby, ready: NET.ready, lastSave: !!NET.lastSave, status: NET.status, inGame: NET.inGame }; },
   bounceTest(lob) {
     let spot = null;
     for (let j = 2; j < H - 2 && !spot; j++) for (let i = 2; i < W - 3 && !spot; i++) if (grid[j * W + i] === 0 && grid[j * W + i + 1] === 1 && grid[j * W + i + 2] === 0) spot = [i, j];
